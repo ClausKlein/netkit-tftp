@@ -249,10 +249,6 @@ main(int ac, char **av)
 		exit(1);
 	}
 
-	if (connect(peer, (struct sockaddr *)&from, sizeof(from)) < 0) {
-		syslog(LOG_ERR, "connect: %m\n");
-		exit(1);
-	}
 	tp = (struct tftphdr *)buf;
 	tp->th_opcode = ntohs(tp->th_opcode);
 	if (tp->th_opcode == RRQ || tp->th_opcode == WRQ)
@@ -464,7 +460,8 @@ sendfile(struct formats *pf)
 		(void) sigsetjmp(timeoutbuf, 1);
 
 send_data:
-		if (send(peer, dp, size + 4, 0) != size + 4) {
+		if (sendto(peer, dp, size + 4, 0, (struct sockaddr *)&from, fromlen)
+			!= size + 4) {
 			syslog(LOG_ERR, "tftpd: write: %m\n");
 			goto abort;
 		}
@@ -531,7 +528,7 @@ recvfile(struct formats *pf)
 		block++;
 		(void) sigsetjmp(timeoutbuf, 1);
 send_ack:
-		if (send(peer, ackbuf, 4, 0) != 4) {
+		if (sendto(peer, ackbuf, 4, 0, (struct sockaddr *)&from, fromlen) != 4) {
 			syslog(LOG_ERR, "tftpd: write: %m\n");
 			goto abort;
 		}
@@ -571,7 +568,7 @@ send_ack:
 
 	ap->th_opcode = htons((u_short)ACK);    /* send the "final" ack */
 	ap->th_block = htons((u_short)(block));
-	(void) send(peer, ackbuf, 4, 0);
+	(void) sendto(peer, ackbuf, 4, 0, (struct sockaddr *)&from, fromlen);
 
 	mysignal(SIGALRM, justquit);      /* just quit on timeout */
 	alarm(rexmtval);
@@ -580,7 +577,7 @@ send_ack:
 	if (n >= 4 &&                   /* if read some data */
 	    dp->th_opcode == DATA &&    /* and got a data block */
 	    block == dp->th_block) {	/* then my last ack was lost */
-		(void) send(peer, ackbuf, 4, 0);     /* resend final ack */
+		(void) sendto(peer, ackbuf, 4, 0, (struct sockaddr *)&from, fromlen);     /* resend final ack */
 	}
 abort:
 	return;
@@ -628,6 +625,6 @@ nak(int error)
 	length = strlen(pe->e_msg);
 	tp->th_msg[length] = '\0';
 	length += 5;
-	if (send(peer, buf, length, 0) != length)
+	if (sendto(peer, buf, length, 0, (struct sockaddr *)&from, fromlen) != length)
 		syslog(LOG_ERR, "nak: %m\n");
 }
