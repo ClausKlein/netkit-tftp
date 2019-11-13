@@ -54,6 +54,7 @@ char subs_rcsid[] =
 #include <netinet/in.h>
 #include <arpa/tftp.h>
 #include <unistd.h>
+#include <string.h>
 #include <stdio.h>
 #include <signal.h>
 

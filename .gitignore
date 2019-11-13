@@ -1,1 +1,7 @@
 MCONFIG
+tftp/*.o
+tftp/tftp
+tftpd/*.o
+tftpd/tftpd
+tftpd/tftpsubs.c
+tftpd/tftpsubs.h

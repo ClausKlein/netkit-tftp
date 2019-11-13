@@ -65,7 +65,7 @@ fi
 
 ##################################################
 
-WARNINGS='-Wall -W -Wpointer-arith -Wbad-function-cast -Wcast-qual -Wstrict-prototypes -Wmissing-prototypes -Wmissing-declarations -Wnested-externs -Winline '
+WARNINGS='-Wall -Wextra -W -Wpointer-arith -Wbad-function-cast -Wcast-qual -Wstrict-prototypes -Wmissing-prototypes -Wmissing-declarations -Wnested-externs -Winline '
 
 cat << EOF > __conftest.c
     int main() { int class=0; return class; }
