@@ -34,7 +34,7 @@
 /*
  * From: @(#)tftpsubs.c	5.6 (Berkeley) 2/28/91
  */
-char subs_rcsid[] = 
+char subs_rcsid[] =
   "$Id: tftpsubs.c,v 1.8 2000/07/22 19:06:29 dholland Exp $";
 
 /* Simple minded read-ahead/write-behind subroutines for tftp user and
@@ -109,7 +109,7 @@ rw_init(int x)              /* init for either read-ahead or write-behind */
    Free it and return next buffer filled with data.
  */
 int
-readit(FILE *file, struct tftphdr **dpp, 
+readit(FILE *file, struct tftphdr **dpp,
        int convert /* if true, convert to ascii */)
 {
 	struct bf *b;

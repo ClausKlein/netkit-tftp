@@ -73,7 +73,7 @@ EOF
 
 if [ x"$CC" = x ]; then
     echo -n 'Looking for a C compiler... '
-    for TRY in egcs gcc g++ CC c++ cc; do
+    for TRY in clang clang++ egcs gcc g++ CC c++ cc; do
        (
            $TRY __conftest.c -o __conftest || exit 1;
            ./__conftest || exit 1;

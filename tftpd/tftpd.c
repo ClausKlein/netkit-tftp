@@ -38,7 +38,7 @@ char copyright[] =
 /*
  * From: @(#)tftpd.c	5.13 (Berkeley) 2/26/91
  */
-char rcsid[] = 
+char rcsid[] =
   "$Id: tftpd.c,v 1.20 2000/07/29 18:37:21 dholland Exp $";
 
 /*
@@ -93,7 +93,7 @@ static struct		sockaddr_storage from;
 static socklen_t	fromlen;
 
 static const char	*default_dirs[] = { "/tftpboot", 0 };
-static const char	**dirs = default_dirs;
+static const char	* const*dirs = default_dirs;
 
 static int		suppress_naks;
 static int		secure_tftp;
@@ -126,7 +126,7 @@ main(int ac, char **av)
 		}
 	}
 
-	if (av[optind]) dirs = (const char **) &av[optind];
+	if (av[optind]) dirs = (const char * const*) &av[optind];
 	if (ioctl(0, FIONBIO, &on) < 0) {
 		syslog(LOG_ERR, "ioctl(FIONBIO): %m\n");
 		exit(1);
@@ -149,7 +149,7 @@ main(int ac, char **av)
 	 * inetd may get one or more successful "selects" on the
 	 * tftp port before we do our receive, so more than one
 	 * instance of tftpd may be started up.  Worse, if tftpd
-	 * were to break before doing the above "recvfrom", inetd 
+	 * were to break before doing the above "recvfrom", inetd
 	 * would spawn endless instances, clogging the system.
 	 */
 	{
@@ -208,7 +208,7 @@ main(int ac, char **av)
 	 * Get the local address of the port inetd is using, so we can
 	 * send from the same address. This will not make multihomed
 	 * usage work *transparently*, but it at least gives a chance
-	 * - you can have inetd bind a separate tftpd port for each 
+	 * - you can have inetd bind a separate tftpd port for each
 	 * interface.
 	 */
 	snsize = sizeof(sn);
@@ -345,7 +345,7 @@ validate_access(const char *filename, int mode)
 	struct stat stbuf;
 	int	fd;
 	const char *cp;
-	const char **dirp;
+	const char * const*dirp;
 
 	syslog(LOG_NOTICE, "tftpd: trying to get file: %s\n", filename);
 
@@ -373,7 +373,7 @@ validate_access(const char *filename, int mode)
 	}
 	for (cp = filename + 1; *cp; cp++) {
 		if (*cp == '.' && strncmp(cp-1, "/../", 4) == 0) {
-			syslog(LOG_WARNING, 
+			syslog(LOG_WARNING,
 			       "tftpd: Blocked illegal request for %s\n",
 			       filename);
 			return(EACCESS);
@@ -479,7 +479,7 @@ send_data:
 
 			if (ap->th_opcode == ERROR)
 				goto abort;
-			
+
 			if (ap->th_opcode == ACK) {
 				if (ap->th_block == block) {
 					break;

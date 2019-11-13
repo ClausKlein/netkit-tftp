@@ -1,3 +1,4 @@
+debian
 MCONFIG
 tftp/*.o
 tftp/tftp
