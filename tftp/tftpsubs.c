@@ -56,6 +56,7 @@ char subs_rcsid[] =
 #include <unistd.h>
 #include <string.h>
 #include <stdio.h>
+#include <string.h>
 #include <signal.h>
 
 #ifndef FIONREAD
@@ -250,12 +251,12 @@ skipit:
  * when trace is active).
  */
 
-int
-synchnet(int f /* socket to flush */)
+void
+synchnet(int f /* socket to flush */, int trace)
 {
 	int i, j = 0;
 	char rbuf[PKTSIZE];
-	struct sockaddr_in from;
+	struct sockaddr_storage from;
 	socklen_t fromlen;
 
 	while (1) {
@@ -266,7 +267,10 @@ synchnet(int f /* socket to flush */)
 			(void) recvfrom(f, rbuf, sizeof (rbuf), 0,
 				(struct sockaddr *)&from, &fromlen);
 		} else {
-			return(j);
+			if (j && trace) {
+				printf("discarded %d packets\n", j);
+			}
+			return;
 		}
 	}
 }

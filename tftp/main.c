@@ -68,8 +68,9 @@ char main_rcsid[] =
 
 #define	TIMEOUT		5		/* secs between rexmt's */
 
-struct sockaddr_in s_inn;
-int f;
+struct sockaddr_storage s_inn;
+socklen_t s_inn_len;
+int f = -1;
 int trace;
 int verbose;
 int rexmtval = TIMEOUT;
@@ -79,8 +80,8 @@ void sendfile(int fd, char *name, char *modestr);
 void recvfile(int fd, char *name, char *modestr);
 
 
-static int connected;
-static short port;
+static int connected = AF_UNSPEC;	/* If non-zero, contains active address family! */
+static char service[NI_MAXSERV] = "tftp";
 static char mode[32];
 static char line[200];
 static int margc;
@@ -151,28 +152,38 @@ struct cmd cmdtab[] = {
 static struct cmd *getcmd(const char *name);
 static char *tail(char *filename);
 
+void initsock(int af) {
+	struct sockaddr_storage s_in;
+
+	if (f >= 0)
+		close(f);
+
+	f = socket(af, SOCK_DGRAM, 0);
+	if (f < 0) {
+		perror("tftp: socket");
+		exit(3);
+	}
+
+	memset(&s_in, 0, sizeof(s_in));
+	s_in.ss_family = af;
+	if (bind(f, (struct sockaddr *)&s_in, sizeof (s_in)) < 0) {
+		perror("tftp: bind");
+		exit(1);
+	}
+}
+
 int
 main(int argc, char *argv[])
 {
-	struct sockaddr_in s_in;
 	int top;
 
+	/* Make a minimal sanity check. */
 	sp = getservbyname("tftp", "udp");
 	if (sp == 0) {
 		fprintf(stderr, "tftp: udp/tftp: unknown service\n");
 		exit(1);
 	}
-	f = socket(AF_INET, SOCK_DGRAM, 0);
-	if (f < 0) {
-		perror("tftp: socket");
-		exit(3);
-	}
-	memset(&s_in, 0, sizeof(s_in));
-	s_in.sin_family = AF_INET;
-	if (bind(f, (struct sockaddr *)&s_in, sizeof (s_in)) < 0) {
-		perror("tftp: bind");
-		exit(1);
-	}
+
 	strcpy(mode, "netascii");
 	mysignal(SIGINT, intr);
 	if (argc > 1) {
@@ -185,12 +196,12 @@ main(int argc, char *argv[])
 		command(top);
 }
 
-static char hostname[100];
+static char hostname[NI_MAXHOST];
 
 void
 setpeer(int argc, char *argv[])
 {
-	struct hostent *host;
+	struct addrinfo hints, *aiptr, *ai;
 	size_t len;
 
 	if (argc < 2) {
@@ -202,40 +213,61 @@ setpeer(int argc, char *argv[])
 		argc = margc;
 		argv = margv;
 	}
-	if (argc > 3) {
+	/* We should have 2 or 3 args now: the cmd and its
+	 * parameters. If not, we bail out here.
+	 */
+	if (argc != 2 && argc != 3) {
 		printf("usage: %s host-name [port]\n", argv[0]);
 		return;
 	}
-	host = gethostbyname(argv[1]);
-	if (host) {
-		s_inn.sin_family = host->h_addrtype;
-		if (host->h_length > (int)sizeof(s_inn.sin_addr)) {
-			host->h_length = sizeof(s_inn.sin_addr);
-		}
-		memcpy(&s_inn.sin_addr, host->h_addr, host->h_length);
-		strncpy(hostname, host->h_name, sizeof(hostname));
-		hostname[sizeof(hostname)-1] = 0;
-	} 
-	else {
-		s_inn.sin_family = AF_INET;
-		if (!inet_aton(argv[1], &s_inn.sin_addr)) {
-			connected = 0;
-			printf("%s: unknown host\n", argv[1]);
-			return;
-		}
-		strcpy(hostname, argv[1]);
-	}
-	port = sp->s_port;
+
+	/* First we record the service name. Default is "tftp".
+	 */
 	if (argc == 3) {
-		port = atoi(argv[2]);
-		if (port < 0) {
-			printf("%s: bad port number\n", argv[2]);
+		if (argv[2] == NULL || *argv[2] == '\0') {
+			printf("%s: bad port name\n", argv[2]);
 			connected = 0;
 			return;
 		}
-		port = htons(port);
+		strncpy(service, argv[2], sizeof(service));
+		service[sizeof(service)-1] = '\0';
 	}
-	connected = 1;
+
+	memset(&hints, 0, sizeof(hints));
+	hints.ai_flags = AI_ALL | AI_V4MAPPED | AI_ADDRCONFIG | AI_CANONNAME;
+	hints.ai_family = AF_UNSPEC;
+	hints.ai_socktype = SOCK_DGRAM;
+
+	if ( getaddrinfo(argv[1], service, &hints, &aiptr) ) {
+		connected = 0;
+		printf("%s: unknown host\n", argv[1]);
+		return;
+	}
+
+	/* Choose first applicable address. */
+	ai = aiptr;
+
+	while ( ai && (ai->ai_family != AF_INET6)
+			&& (ai->ai_family != AF_INET) )
+		ai = ai->ai_next;
+
+
+	if ( ai == NULL ) {
+		connected = 0;
+		freeaddrinfo(aiptr);
+		printf("%s: unknown host\n", argv[1]);
+		return;
+	}
+
+	memcpy(&s_inn, ai->ai_addr, ai->ai_addrlen);
+	s_inn_len = ai->ai_addrlen;
+	connected = ai->ai_family;
+	strncpy(hostname, aiptr->ai_canonname, sizeof(hostname));
+	hostname[sizeof(hostname)-1] = '\0';
+	freeaddrinfo(aiptr);
+
+	/* Test and set socket for the relevant address family. */
+	initsock(connected);
 }
 
 struct	modes {
@@ -336,7 +368,8 @@ put(int argc, char *argv[])
 	targ = argv[argc - 1];
 	if (strchr(argv[argc - 1], ':')) {
 		char *cp;
-		struct hostent *hp;
+		struct addrinfo hints, *aiptr, *ai;
+		int status;
 
 		for (n = 1; n < argc - 1; n++)
 			if (strchr(argv[n], ':')) {
@@ -344,22 +377,39 @@ put(int argc, char *argv[])
 				return;
 			}
 		cp = argv[argc - 1];
-		targ = strchr(cp, ':');
+		/* Last colon. Numerical IPv6 addresses! */
+		targ = strrchr(cp, ':');
 		*targ++ = 0;
-		hp = gethostbyname(cp);
-		if (hp == NULL) {
-			fprintf(stderr, "tftp: %s: ", cp);
-			herror((char *)NULL);
+
+		memset(&hints, 0, sizeof(hints));
+		hints.ai_flags = AI_V4MAPPED | AI_ADDRCONFIG | AI_CANONNAME; 
+		hints.ai_family = AF_UNSPEC;
+		hints.ai_socktype = SOCK_DGRAM;
+
+		status = getaddrinfo(cp, service, &hints, &aiptr);
+		if ( status != 0 ) {
+			fprintf(stderr, "tftp: %s: %s\n", cp, gai_strerror(status));
 			return;
 		}
-		if (hp->h_length > (int)sizeof(s_inn.sin_addr)) {
-			hp->h_length = sizeof(s_inn.sin_addr);
+
+		ai = aiptr;
+		while ( ai && (ai->ai_family != AF_INET)
+				&& (ai->ai_family != AF_INET6) )
+			ai = ai->ai_next;
+
+		if ( ai == NULL ) {
+			freeaddrinfo(aiptr);
+			fprintf(stderr, "tftp: %s: %s\n", cp, "Address not found");
+			return;
 		}
-		memcpy(&s_inn.sin_addr, hp->h_addr, hp->h_length);
-		s_inn.sin_family = hp->h_addrtype;
-		connected = 1;
-		strncpy(hostname, hp->h_name, sizeof(hostname));
-		hostname[sizeof(hostname)-1] = 0;
+
+		memcpy(&s_inn, ai->ai_addr, ai->ai_addrlen);
+		s_inn_len = ai->ai_addrlen;
+		connected = ai->ai_family;
+		strncpy(hostname, aiptr->ai_canonname, sizeof(hostname));
+		hostname[sizeof(hostname)-1] = '\0';
+		freeaddrinfo(aiptr);
+		initsock(connected);
 	}
 	if (!connected) {
 		printf("No target machine specified.\n");
@@ -376,7 +426,7 @@ put(int argc, char *argv[])
 		if (verbose)
 			printf("putting %s to %s:%s [%s]\n",
 				ccp, hostname, targ, mode);
-		s_inn.sin_port = port;
+
 		sendfile(fd, targ, mode);
 		return;
 	}
@@ -394,7 +444,7 @@ put(int argc, char *argv[])
 		if (verbose)
 			printf("putting %s to %s:%s [%s]\n",
 				argv[n], hostname, targ, mode);
-		s_inn.sin_port = port;
+
 		sendfile(fd, targ, mode);
 	}
 }
@@ -439,29 +489,50 @@ get(int argc, char *argv[])
 			}
 	}
 	for (n = 1; n < argc ; n++) {
-		src = strchr(argv[n], ':');
+		/* Last colon. Numerical IPv6 addresses! */
+		src = strrchr(argv[n], ':');
 		if (src == NULL)
 			src = argv[n];
 		else {
-			struct hostent *hp;
+			struct addrinfo hints, *aiptr, *ai;
+			int status;
 
 			*src++ = 0;
-			hp = gethostbyname(argv[n]);
-			if (hp == NULL) {
-				fprintf(stderr, "tftp: %s: ", argv[n]);
-				herror(NULL);
+			memset(&hints, 0, sizeof(hints));
+			hints.ai_flags = AI_V4MAPPED | AI_ADDRCONFIG | AI_CANONNAME; 
+			hints.ai_family = AF_UNSPEC;
+			hints.ai_socktype = SOCK_DGRAM;
+
+			status = getaddrinfo(argv[n], service, &hints, &aiptr);
+			if ( status ) {
+				fprintf(stderr, "tftp: %s: %s\n", argv[n],
+						gai_strerror(status));
 				continue;
 			}
-			if (hp->h_length > (int)sizeof(s_inn.sin_addr)) {
-				hp->h_length = sizeof(s_inn.sin_addr);
+
+			ai = aiptr;
+			while ( ai && (ai->ai_family != AF_INET)
+					&& (ai->ai_family != AF_INET6) )
+				ai = ai->ai_next;
+
+
+			if ( ai == NULL ) {
+				freeaddrinfo(aiptr);
+				fprintf(stderr, "tftp: %s: %s\n", argv[n],
+						"Address not found");
+				continue;
 			}
-			memcpy(&s_inn.sin_addr, hp->h_addr, hp->h_length);
-			s_inn.sin_family = hp->h_addrtype;
-			connected = 1;
-			strncpy(hostname, hp->h_name, sizeof(hostname));
+
+			memcpy(&s_inn, ai->ai_addr, ai->ai_addrlen);
+			s_inn_len = ai->ai_addrlen;
+			connected = ai->ai_family;
+			strncpy(hostname, aiptr->ai_canonname,
+					sizeof(hostname));
 			hostname[sizeof(hostname)-1] = 0;
+			freeaddrinfo(aiptr);
+			initsock(connected);
 		}
-		if (argc < 4) {
+		if (argc == 2 || (argc == 3 && n == 1 && !strchr(argv[2], ':'))) {
 			cp = argc == 3 ? argv[2] : tail(src);
 			fd = creat(cp, 0644);
 			if (fd < 0) {
@@ -471,7 +542,7 @@ get(int argc, char *argv[])
 			if (verbose)
 				printf("getting from %s:%s to %s [%s]\n",
 					hostname, src, cp, mode);
-			s_inn.sin_port = port;
+
 			recvfile(fd, src, mode);
 			break;
 		}
@@ -484,7 +555,7 @@ get(int argc, char *argv[])
 		if (verbose)
 			printf("getting from %s:%s to %s [%s]\n",
 				hostname, src, cp, mode);
-		s_inn.sin_port = port;
+
 		recvfile(fd, src, mode);
 	}
 }
@@ -493,7 +564,8 @@ void
 getusage(const char *s)
 {
 	printf("usage: %s host:file host:file ... file, or\n", s);
-	printf("       %s file file ... file if connected\n", s);
+	printf("       %s file file ... file   if connected, or\n", s);
+	printf("       %s host:rfile lfile\n", s);
 }
 
 

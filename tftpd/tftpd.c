@@ -89,28 +89,44 @@ static int		maxtimeout = 5*TIMEOUT;
 
 static char		buf[PKTSIZE];
 static char		ackbuf[PKTSIZE];
-static struct		sockaddr_in from;
+static struct		sockaddr_storage from;
 static socklen_t	fromlen;
 
-#define MAXARG		4
-static char		*dirs[MAXARG+1];
+static const char	*default_dirs[] = { "/tftpboot", 0 };
+static const char	**dirs = default_dirs;
+
+static int		suppress_naks;
+static int		secure_tftp;
 
 int
 main(int ac, char **av)
 {
-	struct sockaddr_in sn;
+	struct sockaddr_storage sn;
 	socklen_t snsize;
 	int dobind=1;
 
 	register struct tftphdr *tp;
 	register int n = 0;
 	int on = 1;
+	int ch;
 
-	ac--; av++;
-	if (ac==0) dirs[0] = "/tftpboot";  /* default directory */
-	while (ac-- > 0 && n < MAXARG)
-		dirs[n++] = *av++;
 	openlog("tftpd", LOG_PID, LOG_DAEMON);
+	opterr = 0;
+	while ((ch = getopt(ac, av, "ns")) != EOF) {
+		switch (ch) {
+		case 'n':
+			suppress_naks = 1;
+			break;
+		case 's':
+			secure_tftp = 1;
+			break;
+		default:
+			syslog(LOG_ERR, "unknown option -%c", ch);
+			exit(1);
+		}
+	}
+
+	if (av[optind]) dirs = (const char **) &av[optind];
 	if (ioctl(0, FIONBIO, &on) < 0) {
 		syslog(LOG_ERR, "ioctl(FIONBIO): %m\n");
 		exit(1);
@@ -157,7 +173,7 @@ main(int ac, char **av)
 				 */
 				k = sizeof(from);
 				i = recvfrom(0, buf, sizeof (buf), 0,
-				    (struct sockaddr *)&from, &k);
+					(struct sockaddr *)&from, &k);
 				if (i > 0) {
 					n = i;
 					fromlen = k;
@@ -186,7 +202,6 @@ main(int ac, char **av)
 			exit(1);
 		}
 	}
-	from.sin_family = AF_INET;
 	alarm(0);
 
 	/*
@@ -197,15 +212,33 @@ main(int ac, char **av)
 	 * interface.
 	 */
 	snsize = sizeof(sn);
-	if (getsockname(0, (struct sockaddr *)&sn, &snsize)<0 ||
-	    sn.sin_addr.s_addr == INADDR_ANY) {
+	if (getsockname(0, (struct sockaddr *)&sn, &snsize) < 0) {
 		dobind = 0;
 	}
-	sn.sin_port = 0;
+
+	if ( dobind ) {
+	    /* Was the wildcard address contained in the socket? */
+	    if ( ((sn.ss_family == AF_INET) &&
+		    ((struct sockaddr_in *)&sn)->sin_addr.s_addr
+				== INADDR_ANY )
+		|| ((sn.ss_family == AF_INET6) &&
+		    IN6_IS_ADDR_UNSPECIFIED(&((struct sockaddr_in6 *)&sn)->sin6_addr))
+		)
+	    {
+		/* Implicit binding suffices for wildcard addresses. */
+		dobind = 0;
+	    }
+	}
+
+	if ( sn.ss_family == AF_INET )
+	    ((struct sockaddr_in *) &sn)->sin_port = 0;
+	else if ( sn.ss_family == AF_INET6 )
+	    ((struct sockaddr_in6 *) &sn)->sin6_port = 0;
 
 	close(0);
 	close(1);
-	peer = socket(AF_INET, SOCK_DGRAM, 0);
+
+	peer = socket(from.ss_family, SOCK_DGRAM, 0);
 	if (peer < 0) {
 		syslog(LOG_ERR, "socket: %m\n");
 		exit(1);
@@ -279,6 +312,12 @@ again:
 	}
 	ecode = (*pf->f_validate)(filename, tp->th_opcode);
 	if (ecode) {
+		/*
+		 * Avoid storms of naks to a RRQ broadcast for a relative
+		 * bootfile pathname from a diskless Sun.
+		 */
+		if (suppress_naks && *filename != '/' && ecode == ENOTFOUND)
+			exit(0);
 		nak(ecode);
 		exit(1);
 	}
@@ -310,13 +349,17 @@ validate_access(const char *filename, int mode)
 	struct stat stbuf;
 	int	fd;
 	const char *cp;
-	char **dirp;
+	const char **dirp;
 
 	syslog(LOG_NOTICE, "tftpd: trying to get file: %s\n", filename);
 
-	if (*filename != '/') {
+	if (*filename != '/' || secure_tftp) {
 		syslog(LOG_NOTICE, "tftpd: serving file from %s\n", dirs[0]);
-		chdir(dirs[0]);
+		/*chdir(dirs[0]);*/
+		if ( chdir(dirs[0]) < 0 )
+			return (EACCESS);
+		while (*filename == '/')
+			filename++;
 	} else {
 		for (dirp = dirs; *dirp; dirp++)
 			if (strncmp(filename, *dirp, strlen(*dirp)) == 0)
@@ -340,8 +383,11 @@ validate_access(const char *filename, int mode)
 			return(EACCESS);
 		}
 	}
-	if (stat(filename, &stbuf) < 0)
-		return (errno == ENOENT ? ENOTFOUND : EACCESS);
+       if (stat(filename, &stbuf) < 0) {
+               if (mode != WRQ) {
+                       return (errno == ENOENT ? ENOTFOUND : EACCESS);
+               }
+       }
 #if 0
 	/*
 	 * The idea is that symlinks are dangerous. However, a symlink
@@ -366,7 +412,8 @@ validate_access(const char *filename, int mode)
 		if ((stbuf.st_mode & S_IWOTH) == 0)
 			return (EACCESS);
 	}
-	fd = open(filename, mode == RRQ ? O_RDONLY : O_WRONLY|O_TRUNC);
+
+	fd = open(filename, mode == RRQ ? O_RDONLY : O_WRONLY|O_TRUNC|O_CREAT, 0600);
 	if (fd < 0)
 		return (errno + 100);
 	file = fdopen(fd, (mode == RRQ)? "r":"w");
@@ -441,7 +488,7 @@ send_data:
 					break;
 				}
 				/* Re-synchronize with the other side */
-				(void) synchnet(peer);
+				(void) synchnet(peer, 0);
 				if (ap->th_block == (block -1)) {
 					goto send_data;
 				}
@@ -506,7 +553,7 @@ send_ack:
 					break;   /* normal */
 				}
 				/* Re-synchronize with the other side */
-				(void) synchnet(peer);
+				(void) synchnet(peer, 0);
 				if (dp->th_block == (block-1))
 					goto send_ack;          /* rexmit */
 			}

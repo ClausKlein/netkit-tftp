@@ -42,6 +42,8 @@
 Trivial File Transfer Protocol server
 .Sh SYNOPSIS
 .Nm tftpd
+.Op Fl n
+.Op Fl s
 .Op Ar directory ...
 .Sh DESCRIPTION
 .Nm Tftpd
@@ -111,6 +113,18 @@ reply address must be fixed, the virtual hosting feature of
 can be used to ensure that replies go out from the correct address.
 These considerations are important, because most tftp clients will
 reject reply packets that appear to come from an unexpected address.
+.Pp
+The options are:
+.Bl -tag -width Ds
+.It Fl n
+Suppresses negative acknowledgement of requests for nonexistent relative
+filenames.
+.It Fl s
+All absolute filenames are treated as if they were preceded by the first
+directory argument, or
+.Pa /tftpboot
+if there is none.
+.El
 .Sh SEE ALSO
 .Xr tftp 1 ,
 .Xr inetd 8

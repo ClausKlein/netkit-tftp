@@ -1,6 +1,7 @@
 #define PKTSIZE SEGSIZE+4       /* should be moved to tftp.h */
 
-int synchnet(int);
+void initsock(int);
+void synchnet(int, int);
 struct tftphdr *r_init(void);
 struct tftphdr *w_init(void);
 int readit(FILE *file, struct tftphdr **dpp, int convert);

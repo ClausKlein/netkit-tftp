@@ -61,7 +61,8 @@ char tftp_rcsid[] =
 
 #include "../version.h"
 
-extern  struct sockaddr_in s_inn;         /* filled in by main */
+extern  struct sockaddr_storage s_inn;  /* filled in by main */
+extern  socklen_t s_inn_len;
 extern  int     f;                      /* the opened socket */
 extern  int     trace;
 extern  int     verbose;
@@ -71,6 +72,8 @@ extern sigjmp_buf toplevel;
 void sendfile(int fd, char *name, char *modestr);
 void recvfile(int fd, char *name, char *modestr);
 
+static struct sockaddr_storage from;	/* most recent remote address */
+static socklen_t fromlen;
 
 static char ackbuf[PKTSIZE];
 static int timeout;
@@ -111,8 +114,6 @@ sendfile(int fd, char *name, char *mode)
 	volatile u_int16_t block = 0;
 	int n;
 	volatile unsigned long amount = 0;
-	struct sockaddr_in from;
-	socklen_t fromlen;
 	volatile int convert;            /* true if doing nl->crlf conversion */
 	FILE *file;
 	volatile int firsttrip = 1;
@@ -122,6 +123,9 @@ sendfile(int fd, char *name, char *mode)
 	ap = (struct tftphdr *)ackbuf;
 	file = fdopen(fd, "r");
 	convert = !strcmp(mode, "netascii");
+
+	memcpy(&from, &s_inn, sizeof(from));
+	fromlen = s_inn_len;
 
 	mysignal(SIGALRM, timer);
 	do {
@@ -143,8 +147,8 @@ sendfile(int fd, char *name, char *mode)
 send_data:
 		if (trace)
 			tpacket("sent", dp, size + 4);
-		n = sendto(f, dp, size + 4, 0,
-		    (struct sockaddr *)&s_inn, sizeof(s_inn));
+
+		n = sendto(f, dp, size + 4, 0, (struct sockaddr *)&from, fromlen);
 		if (n != size + 4) {
 			perror("tftp: sendto");
 			goto abort;
@@ -162,7 +166,7 @@ send_data:
 				perror("tftp: recvfrom");
 				goto abort;
 			}
-			s_inn.sin_port = from.sin_port;   /* added */
+
 			if (trace)
 				tpacket("received", ap, n);
 			/* should verify packet came from server */
@@ -174,19 +178,13 @@ send_data:
 				goto abort;
 			}
 			if (ap->th_opcode == ACK) {
-				volatile int j = 0;
-
 				if (ap->th_block == block) {
 					break;
 				}
 				/* On an error, try to synchronize
 				 * both sides.
 				 */
-				j = synchnet(f);
-				if (j && trace) {
-					printf("discarded %d packets\n",
-							j);
-				}
+				synchnet(f, trace);
 				if (ap->th_block == (block-1)) {
 					goto send_data;
 				}
@@ -197,14 +195,18 @@ send_data:
 		}
 		else {
 			amount += size;
+			if (size != SEGSIZE) {
+				break;
+			}
 		}
 		block++;
-	} while (size == SEGSIZE);
+	} while (1);
 abort:
 	fclose(file);
 	stopclock();
 	if (amount > 0)
 		printstats("Sent", amount);
+	initsock(from.ss_family);	/* Synchronize address family. */
 }
 
 /*
@@ -219,8 +221,6 @@ recvfile(int fd, char *name, char *mode)
 	volatile u_int16_t block = 1;
 	int n; 
 	volatile unsigned long amount = 0;
-	struct sockaddr_in from;
-	socklen_t fromlen;
 	volatile int firsttrip = 1;
 	FILE *file;
 	volatile int convert;            /* true if converting crlf -> lf */
@@ -230,6 +230,9 @@ recvfile(int fd, char *name, char *mode)
 	ap = (struct tftphdr *)ackbuf;
 	file = fdopen(fd, "w");
 	convert = !strcmp(mode, "netascii");
+
+	memcpy(&from, &s_inn, sizeof(from));
+	fromlen = s_inn_len;
 
 	mysignal(SIGALRM, timer);
 	do {
@@ -247,8 +250,9 @@ recvfile(int fd, char *name, char *mode)
 send_ack:
 		if (trace)
 			tpacket("sent", ap, size);
-		if (sendto(f, ackbuf, size, 0, (struct sockaddr *)&s_inn,
-		    sizeof (s_inn)) != size) {
+
+		n = sendto(f, ackbuf, size, 0, (struct sockaddr *)&from, fromlen);
+		if ( n != size) {
 			alarm(0);
 			perror("tftp: sendto");
 			goto abort;
@@ -266,7 +270,7 @@ send_ack:
 				perror("tftp: recvfrom");
 				goto abort;
 			}
-			s_inn.sin_port = from.sin_port;   /* added */
+
 			if (trace)
 				tpacket("received", dp, n);
 			/* should verify client address */
@@ -278,18 +282,13 @@ send_ack:
 				goto abort;
 			}
 			if (dp->th_opcode == DATA) {
-				volatile int j = 0;
-
 				if (dp->th_block == block) {
 					break;          /* have next packet */
 				}
 				/* On an error, try to synchronize
 				 * both sides.
 				 */
-				j = synchnet(f);
-				if (j && trace) {
-					printf("discarded %d packets\n", j);
-				}
+				synchnet(f, trace);
 				if (dp->th_block == (block-1)) {
 					goto send_ack;  /* resend ack */
 				}
@@ -303,15 +302,18 @@ send_ack:
 		}
 		amount += size;
 	} while (size == SEGSIZE);
-abort:                                          /* ok to ack, since user */
+
 	ap->th_opcode = htons((u_short)ACK);    /* has seen err msg */
 	ap->th_block = htons((u_short)block);
-	(void) sendto(f, ackbuf, 4, 0, (struct sockaddr *)&s_inn, sizeof(s_inn));
+	(void) sendto(f, ackbuf, 4, 0, (struct sockaddr *)&from, fromlen);
+
+abort:
 	write_behind(file, convert);            /* flush last buffer */
 	fclose(file);
 	stopclock();
 	if (amount > 0)
 		printstats("Received", amount);
+	initsock(from.ss_family);	/* Synchronize address family. */
 }
 
 int
@@ -372,8 +374,8 @@ nak(int error)
 	length = strlen(pe->e_msg) + 4;
 	if (trace)
 		tpacket("sent", tp, length);
-	if (sendto(f, ackbuf, length, 0, (struct sockaddr *)&s_inn,
-	    sizeof (s_inn)) != length)
+	if (sendto(f, ackbuf, length, 0, (struct sockaddr *)&from, fromlen)
+	    != length)
 		perror("nak");
 }
 
