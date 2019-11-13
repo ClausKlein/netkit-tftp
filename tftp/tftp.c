@@ -320,14 +320,17 @@ int
 makerequest(int request, char *name, struct tftphdr *tp, char *mode)
 {
 	register char *cp;
+	int len;
 
 	tp->th_opcode = htons((u_short)request);
 	cp = tp->th_stuff;
-	strcpy(cp, name);
-	cp += strlen(name);
+	len = strlen(name);
+	memcpy(cp, name, len);
+	cp += len;
 	*cp++ = '\0';
-	strcpy(cp, mode);
-	cp += strlen(mode);
+	len = strlen(mode);
+	memcpy(cp, mode, len);
+	cp += len;
 	*cp++ = '\0';
 	return (cp - (char *)tp);
 }
