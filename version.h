@@ -2,4 +2,4 @@
  * String to embed in binaries to identify package
  */
 
-char pkg[]="$NetKit: netkit-tftp-0.17 $";
+char pkg[] = "$NetKit: netkit-tftp-0.17 $";

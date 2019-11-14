@@ -1,4 +1,6 @@
-#define PKTSIZE SEGSIZE+4       /* should be moved to tftp.h */
+#include <stdio.h>
+
+#define PKTSIZE (SEGSIZE + 4) /* should be moved to tftp.h */
 
 void initsock(int);
 void synchnet(int, int);
