@@ -38,46 +38,48 @@ char copyright[] =
 /*
  * From: @(#)tftpd.c	5.13 (Berkeley) 2/26/91
  */
-char rcsid[] = "$Id: tftpd.c,v 1.20 2000/07/29 18:37:21 dholland Exp $";
+// char rcsid[] = "$Id: tftpd.c,v 1.20 2000/07/29 18:37:21 dholland Exp $";
 
 /*
  * Trivial file transfer protocol server.
  *
  * This version includes many modifications by Jim Guyton <guyton@rand-unix>
  */
-#include <fcntl.h>
-#include <netinet/in.h>
-#include <signal.h>
-#include <sys/ioctl.h>
-#include <sys/socket.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-/* #include <netinet/ip.h> <--- unused? */
-#include "../version.h"
-#include "tftpsubs.h"
+#include "tftp/tftpsubs.h"
 
 #include <arpa/tftp.h>
 #include <ctype.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <grp.h>
+#include <memory>
 #include <netdb.h>
+#include <netinet/in.h>
 #include <pwd.h>
 #include <setjmp.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/ioctl.h>
+#include <sys/socket.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 #include <syslog.h>
 #include <unistd.h>
+#include <vector>
 
 #define TIMEOUT 5
 
+// TODO extern interface:
 struct formats;
-static void tftp(struct tftphdr *tp, int size);
+int tftp(struct tftphdr *tp, size_t size);
+
 static void nak(int error);
 static void sendfile(struct formats *pf);
 static void recvfile(struct formats *pf);
 
-static int validate_access(const char *, int);
+static int validate_access(const char *filename, int mode);
 
 static int peer;
 static int rexmtval = TIMEOUT;
@@ -88,168 +90,12 @@ static char ackbuf[PKTSIZE];
 static struct sockaddr_storage from;
 static socklen_t fromlen;
 
-static const char *default_dirs[] = {"/tftpboot", 0};
+static const char *default_dirs[] = {"/tmp/tftpboot", 0};
 static const char *const *dirs = default_dirs;
 
-static int suppress_naks;
-static int secure_tftp;
-
-int main(int ac, char **av)
-{
-    struct sockaddr_storage sn;
-    socklen_t snsize;
-    int dobind = 1;
-
-    register struct tftphdr *tp;
-    register int n = 0;
-    int on = 1;
-    int ch;
-
-    openlog("tftpd", LOG_PID, LOG_DAEMON);
-    opterr = 0;
-    while ((ch = getopt(ac, av, "ns")) != EOF) {
-        switch (ch) {
-        case 'n':
-            suppress_naks = 1;
-            break;
-        case 's':
-            secure_tftp = 1;
-            break;
-        default:
-            syslog(LOG_ERR, "unknown option -%c", ch);
-            exit(1);
-        }
-    }
-
-    if (av[optind])
-        dirs = (const char *const *)&av[optind];
-    if (ioctl(0, FIONBIO, &on) < 0) {
-        syslog(LOG_ERR, "ioctl(FIONBIO): %m\n");
-        exit(1);
-    }
-    fromlen = sizeof(from);
-    n = recvfrom(0, buf, sizeof(buf), 0, (struct sockaddr *)&from, &fromlen);
-    if (n < 0) {
-        syslog(LOG_ERR, "recvfrom: %m\n");
-        exit(1);
-    }
-    /*
-     * Now that we have read the message out of the UDP
-     * socket, we fork and exit.  Thus, inetd will go back
-     * to listening to the tftp port, and the next request
-     * to come in will start up a new instance of tftpd.
-     *
-     * We do this so that inetd can run tftpd in "wait" mode.
-     * The problem with tftpd running in "nowait" mode is that
-     * inetd may get one or more successful "selects" on the
-     * tftp port before we do our receive, so more than one
-     * instance of tftpd may be started up.  Worse, if tftpd
-     * were to break before doing the above "recvfrom", inetd
-     * would spawn endless instances, clogging the system.
-     */
-    {
-        int pid = -1;
-        int i;
-        socklen_t k;
-
-        for (i = 1; i < 20; i++) {
-            pid = fork();
-            if (pid < 0) {
-                sleep(i);
-                /*
-                 * flush out to most recently sent request.
-                 *
-                 * This may drop some request, but those
-                 * will be resent by the clients when
-                 * they timeout.  The positive effect of
-                 * this flush is to (try to) prevent more
-                 * than one tftpd being started up to service
-                 * a single request from a single client.
-                 */
-                k = sizeof(from);
-                i = recvfrom(0, buf, sizeof(buf), 0, (struct sockaddr *)&from,
-                             &k);
-                if (i > 0) {
-                    n = i;
-                    fromlen = k;
-                }
-            } else {
-                break;
-            }
-        }
-        if (pid < 0) {
-            syslog(LOG_ERR, "fork: %m\n");
-            exit(1);
-        } else if (pid != 0) {
-            exit(0);
-        }
-    }
-    if (!getuid() || !geteuid()) {
-        struct passwd *pwd = getpwnam("nobody");
-        if (pwd) {
-            initgroups(pwd->pw_name, pwd->pw_gid);
-            setgid(
-                pwd->pw_gid); // NOLINT(clang-analyzer-security.insecureAPI.UncheckedReturn)
-            setuid(
-                pwd->pw_uid); // NOLINT(clang-analyzer-security.insecureAPI.UncheckedReturn)
-        }
-        (void)seteuid(0); /* NOLINT: this should fail! */
-        if (!getuid() || !geteuid()) {
-            syslog(LOG_CRIT, "can't drop root privileges");
-            exit(1);
-        }
-    }
-    alarm(0);
-
-    /*
-     * Get the local address of the port inetd is using, so we can
-     * send from the same address. This will not make multihomed
-     * usage work *transparently*, but it at least gives a chance
-     * - you can have inetd bind a separate tftpd port for each
-     * interface.
-     */
-    snsize = sizeof(sn);
-    if (getsockname(0, (struct sockaddr *)&sn, &snsize) < 0) {
-        dobind = 0;
-    }
-
-    if (dobind) {
-        /* Was the wildcard address contained in the socket? */
-        if (((sn.ss_family == AF_INET) &&
-             ((struct sockaddr_in *)&sn)->sin_addr.s_addr == INADDR_ANY) ||
-            ((sn.ss_family == AF_INET6) &&
-             IN6_IS_ADDR_UNSPECIFIED(
-                 &((struct sockaddr_in6 *)&sn)->sin6_addr))) {
-            /* Implicit binding suffices for wildcard addresses. */
-            dobind = 0;
-        }
-    }
-
-    if (sn.ss_family == AF_INET)
-        ((struct sockaddr_in *)&sn)->sin_port = 0;
-    else if (sn.ss_family == AF_INET6)
-        ((struct sockaddr_in6 *)&sn)->sin6_port = 0;
-
-    close(0);
-    close(1);
-
-    peer = socket(from.ss_family, SOCK_DGRAM, 0);
-    if (peer < 0) {
-        syslog(LOG_ERR, "socket: %m\n");
-        exit(1);
-    }
-
-    if (dobind && bind(peer, (struct sockaddr *)&sn, snsize) < 0) {
-        syslog(LOG_ERR, "bind: %m\n");
-        exit(1);
-    }
-
-    tp = (struct tftphdr *)buf;
-    tp->th_opcode = ntohs(tp->th_opcode);
-    if (tp->th_opcode == RRQ || tp->th_opcode == WRQ)
-        tftp(tp, n);
-    exit(1);
-}
+static bool suppress_naks = false;
+static bool secure_tftp = false;
+static FILE *file;
 
 struct formats
 {
@@ -265,58 +111,71 @@ struct formats
 /*
  * Handle initial connection protocol.
  */
-static void tftp(struct tftphdr *tp, int size)
+int tftp(struct tftphdr *tp, size_t size)
 {
-    register char *cp;
-    int first = 1, ecode;
-    register struct formats *pf;
+    char *cp;
+    bool first = true;
+    int ecode;
+    struct formats *pf;
     char *filename, *mode = NULL;
 
     filename = cp = tp->th_stuff;
-again:
-    while (cp < buf + size) {
-        if (*cp == '\0')
-            break;
-        cp++;
-    }
-    if (*cp != '\0') {
-        nak(EBADOP);
-        exit(1);
-    }
-    if (first) {
-        mode = ++cp;
-        first = 0;
-        goto again;
-    }
-    for (cp = mode; *cp; cp++)
-        if (isupper(*cp))
+    do {
+        while (cp < buf + size) {
+            if (*cp == '\0') {
+                break;
+            }
+            cp++;
+        }
+        if (*cp != '\0') {
+            nak(EBADOP);
+            return (1);
+        }
+        if (first) {
+            mode = ++cp;
+            first = false;
+            continue;
+        }
+        break;
+    } while (true);
+
+    for (cp = mode; *cp != 0; cp++) {
+        if (isupper(*cp) != 0) {
             *cp = tolower(*cp);
-    for (pf = formats; pf->f_mode; pf++)
-        if (strcmp(pf->f_mode, mode) == 0)
+        }
+    }
+    for (pf = formats; pf->f_mode != nullptr; pf++) {
+        if (strcmp(pf->f_mode, mode) == 0) {
             break;
+        }
+    }
     if (pf->f_mode == 0) {
         nak(EBADOP);
-        exit(1);
+        return (1);
     }
+
     ecode = (*pf->f_validate)(filename, tp->th_opcode);
-    if (ecode) {
+    if (ecode != 0) {
         /*
          * Avoid storms of naks to a RRQ broadcast for a relative
          * bootfile pathname from a diskless Sun.
          */
-        if (suppress_naks && *filename != '/' && ecode == ENOTFOUND)
-            exit(0);
+        if (suppress_naks && *filename != '/' && ecode == ENOTFOUND) {
+            return (0);
+        }
         nak(ecode);
-        exit(1);
+        return (1);
     }
-    if (tp->th_opcode == WRQ)
-        (*pf->f_recv)(pf);
-    else
-        (*pf->f_send)(pf);
-    exit(0);
-}
 
-FILE *file;
+    if (tp->th_opcode == WRQ) {
+        // NO! (*pf->f_recv)(pf);
+    } else {
+        // NEVER! (*pf->f_send)(pf);
+        nak(EBADOP);
+        return 1;
+    }
+    return (0);
+}
 
 /*
  * Validate file access.  Since we
@@ -331,7 +190,7 @@ FILE *file;
  */
 static int validate_access(const char *filename, int mode)
 {
-    struct stat stbuf;
+    struct stat stbuf = {};
     int fd;
     const char *cp;
     const char *const *dirp;
@@ -341,26 +200,31 @@ static int validate_access(const char *filename, int mode)
     if (*filename != '/' || secure_tftp) {
         syslog(LOG_NOTICE, "tftpd: serving file from %s\n", dirs[0]);
         /*chdir(dirs[0]);*/
-        if (chdir(dirs[0]) < 0)
+        if (chdir(dirs[0]) < 0) {
             return (EACCESS);
-        while (*filename == '/')
+        }
+        while (*filename == '/') {
             filename++;
+        }
     } else {
-        for (dirp = dirs; *dirp; dirp++)
-            if (strncmp(filename, *dirp, strlen(*dirp)) == 0)
+        for (dirp = dirs; *dirp != nullptr; dirp++) {
+            if (strncmp(filename, *dirp, strlen(*dirp)) == 0) {
                 break;
-        if (*dirp == 0 && dirp != dirs)
+            }
+        }
+        if (*dirp == 0 && dirp != dirs) {
             return (EACCESS);
+        }
     }
     /*
      * prevent tricksters from getting around the directory restrictions
      */
-    if (!strncmp(filename, "../", 3)) {
+    if (strncmp(filename, "../", 3) == 0) {
         syslog(LOG_WARNING, "tftpd: Blocked illegal request for %s\n",
                filename);
         return EACCESS;
     }
-    for (cp = filename + 1; *cp; cp++) {
+    for (cp = filename + 1; *cp != 0; cp++) {
         if (*cp == '.' && strncmp(cp - 1, "/../", 4) == 0) {
             syslog(LOG_WARNING, "tftpd: Blocked illegal request for %s\n",
                    filename);
@@ -371,7 +235,8 @@ static int validate_access(const char *filename, int mode)
         if (mode != WRQ) {
             return (errno == ENOENT ? ENOTFOUND : EACCESS);
         }
-    }
+    } else {
+
 #if 0
 	/*
 	 * The idea is that symlinks are dangerous. However, a symlink
@@ -389,18 +254,23 @@ static int validate_access(const char *filename, int mode)
 		return (EACCESS);
 	}
 #endif
-    if (mode == RRQ) {
-        if ((stbuf.st_mode & S_IROTH) == 0)
-            return (EACCESS);
-    } else {
-        if ((stbuf.st_mode & S_IWOTH) == 0)
-            return (EACCESS);
+
+        if (mode == RRQ) {
+            if ((stbuf.st_mode & S_IROTH) == 0) {
+                return (EACCESS);
+            }
+        } else {
+            if ((stbuf.st_mode & S_IWOTH) == 0) {
+                return (EACCESS);
+            }
+        }
     }
 
-    fd = open(filename, mode == RRQ ? O_RDONLY : O_WRONLY | O_TRUNC | O_CREAT,
-              0600);
-    if (fd < 0)
+    fd = open(filename,
+              (mode == RRQ ? O_RDONLY : (O_WRONLY | O_TRUNC | O_CREAT)), 0600);
+    if (fd < 0) {
         return (errno + 100);
+    }
     file = fdopen(fd, (mode == RRQ) ? "r" : "w");
     if (file == NULL) {
         return errno + 100;
@@ -408,16 +278,16 @@ static int validate_access(const char *filename, int mode)
     return (0);
 }
 
-int timeout;
-sigjmp_buf timeoutbuf;
-
+static int timeout;
+static sigjmp_buf timeoutbuf;
 static void timer(int signum)
 {
     (void)signum;
 
     timeout += rexmtval;
-    if (timeout >= maxtimeout)
+    if (timeout >= maxtimeout) {
         exit(1);
+    }
     siglongjmp(timeoutbuf, 1);
 }
 
@@ -427,60 +297,63 @@ static void timer(int signum)
 static void sendfile(struct formats *pf)
 {
     struct tftphdr *dp;
-    register struct tftphdr *ap; /* ack packet */
+    struct tftphdr *ap; /* ack packet */
     volatile u_int16_t block = 1;
     int size, n;
 
-    mysignal(SIGALRM, timer);
+    const std::shared_ptr<FILE> guard(file, std::fclose);
+    mysignal(SIGALRM, timer); // FIXME
     dp = r_init();
     ap = (struct tftphdr *)ackbuf;
     do {
         size = readit(file, &dp, pf->f_convert);
         if (size < 0) {
             nak(errno + 100);
-            goto abort;
+            break;
         }
         dp->th_opcode = htons((u_short)DATA);
         dp->th_block = htons((u_short)block);
         timeout = 0;
-        (void)sigsetjmp(timeoutbuf, 1);
+        (void)sigsetjmp(timeoutbuf, 1); // FIXME
 
     send_data:
         if (sendto(peer, dp, size + 4, 0, (struct sockaddr *)&from, fromlen) !=
             size + 4) {
             syslog(LOG_ERR, "tftpd: write: %m\n");
-            goto abort;
+            break;
         }
+
         read_ahead(file, pf->f_convert);
         for (;;) {
-            alarm(rexmtval); /* read the ack */
+            alarm(rexmtval); /* read the ack */ // FIXME
             n = recv(peer, ackbuf, sizeof(ackbuf), 0);
             alarm(0);
             if (n < 0) {
                 syslog(LOG_ERR, "tftpd: read: %m\n");
-                goto abort;
+                return;
             }
             ap->th_opcode = ntohs((u_short)ap->th_opcode);
             ap->th_block = ntohs((u_short)ap->th_block);
 
-            if (ap->th_opcode == ERROR)
-                goto abort;
+            if (ap->th_opcode == ERROR) {
+                return;
+            }
 
             if (ap->th_opcode == ACK) {
                 if (ap->th_block == block) {
                     break;
                 }
                 /* Re-synchronize with the other side */
-                (void)synchnet(peer, 0);
+                (void)synchnet(peer, false);
                 if (ap->th_block == (block - 1)) {
+                    // NOLINTNEXTLINE(cppcoreguidelines-avoid-goto)
                     goto send_data;
                 }
             }
         }
         block++;
     } while (size == SEGSIZE);
-abort:
-    (void)fclose(file);
+    // XXX abort: (void)fclose(file);
 }
 
 static void justquit(int signum)
@@ -497,65 +370,76 @@ static void recvfile(struct formats *pf)
     struct tftphdr *dp;
     struct tftphdr *ap; /* ack buffer */
     volatile u_int16_t block = 0;
-    int n, size;
+    int n;
 
-    mysignal(SIGALRM, timer);
-    dp = w_init();
-    ap = (struct tftphdr *)ackbuf;
-    do {
-        timeout = 0;
-        ap->th_opcode = htons((u_short)ACK);
-        ap->th_block = htons((u_short)block);
-        block++;
-        (void)sigsetjmp(timeoutbuf, 1);
-    send_ack:
-        if (sendto(peer, ackbuf, 4, 0, (struct sockaddr *)&from, fromlen) !=
-            4) {
-            syslog(LOG_ERR, "tftpd: write: %m\n");
-            goto abort;
-        }
-        write_behind(file, pf->f_convert);
-        for (;;) {
-            alarm(rexmtval);
-            n = recv(peer, dp, PKTSIZE, 0);
-            alarm(0);
-            if (n < 0) { /* really? */
-                syslog(LOG_ERR, "tftpd: read: %m\n");
-                goto abort;
+    {
+        int size;
+        const std::shared_ptr<FILE> guard(file, std::fclose);
+        mysignal(SIGALRM, timer); // FIXME
+        dp = w_init();
+        ap = (struct tftphdr *)ackbuf;
+        do {
+            timeout = 0;
+            ap->th_opcode = htons((u_short)ACK);
+            ap->th_block = htons((u_short)block);
+            block++;
+            (void)sigsetjmp(timeoutbuf, 1); // FIXME
+        send_ack:
+            if (sendto(peer, ackbuf, 4, 0, (struct sockaddr *)&from, fromlen) !=
+                4) {
+                syslog(LOG_ERR, "tftpd: write: %m\n");
+                break;
             }
-            dp->th_opcode = ntohs((u_short)dp->th_opcode);
-            dp->th_block = ntohs((u_short)dp->th_block);
-            if (dp->th_opcode == ERROR)
-                goto abort;
-            if (dp->th_opcode == DATA) {
-                if (dp->th_block == block) {
-                    break; /* normal */
+
+            write_behind(file, pf->f_convert);
+            for (;;) {
+                alarm(rexmtval); // FIXME
+                n = recv(peer, dp, PKTSIZE, 0);
+                alarm(0);
+                if (n < 0) { /* really? */
+                    syslog(LOG_ERR, "tftpd: read: %m\n");
+                    return;
                 }
-                /* Re-synchronize with the other side */
-                (void)synchnet(peer, 0);
-                if (dp->th_block == (block - 1))
-                    goto send_ack; /* rexmit */
+                dp->th_opcode = ntohs((u_short)dp->th_opcode);
+                dp->th_block = ntohs((u_short)dp->th_block);
+                if (dp->th_opcode == ERROR) {
+                    return;
+                }
+                if (dp->th_opcode == DATA) {
+                    if (dp->th_block == block) {
+                        break; /* normal */
+                    }
+                    /* Re-synchronize with the other side */
+                    (void)synchnet(peer, false);
+                    if (dp->th_block == (block - 1)) {
+                        // NOLINTNEXTLINE(cppcoreguidelines-avoid-goto)
+                        goto send_ack; /* rexmit */
+                    }
+                }
             }
-        }
-        /*  size = write(file, dp->th_data, n - 4); */
-        size = writeit(file, &dp, n - 4, pf->f_convert);
-        if (size != (n - 4)) { /* ahem */
-            if (size < 0)
-                nak(errno + 100);
-            else
-                nak(ENOSPACE);
-            goto abort;
-        }
-    } while (size == SEGSIZE);
-    write_behind(file, pf->f_convert);
-    (void)fclose(file); /* close data file */
+
+            /*  size = write(file, dp->th_data, n - 4); */
+            size = writeit(file, &dp, n - 4, pf->f_convert);
+            if (size != (n - 4)) { /* ahem */
+                if (size < 0) {
+                    nak(errno + 100);
+                } else {
+                    nak(ENOSPACE);
+                }
+                return;
+            }
+        } while (size == SEGSIZE);
+
+        write_behind(file, pf->f_convert);
+        // XXX (void)fclose(file); /* close data file */
+    }
 
     ap->th_opcode = htons((u_short)ACK); /* send the "final" ack */
     ap->th_block = htons((u_short)(block));
     (void)sendto(peer, ackbuf, 4, 0, (struct sockaddr *)&from, fromlen);
 
-    mysignal(SIGALRM, justquit); /* just quit on timeout */
-    alarm(rexmtval);
+    mysignal(SIGALRM, justquit);         /* FIXME just quit on timeout */
+    alarm(rexmtval);                     // FIXME
     n = recv(peer, buf, sizeof(buf), 0); /* normally times out and quits */
     alarm(0);
     if (n >= 4 &&                /* if read some data */
@@ -564,8 +448,6 @@ static void recvfile(struct formats *pf)
         (void)sendto(peer, ackbuf, 4, 0, (struct sockaddr *)&from,
                      fromlen); /* resend final ack */
     }
-abort:
-    return;
 }
 
 struct errmsg
@@ -590,16 +472,18 @@ struct errmsg
  */
 static void nak(int error)
 {
-    register struct tftphdr *tp;
+    struct tftphdr *tp;
     int length;
-    register struct errmsg *pe;
+    struct errmsg *pe;
 
     tp = (struct tftphdr *)buf;
     tp->th_opcode = htons((u_short)ERROR);
     tp->th_code = htons((u_short)error);
-    for (pe = errmsgs; pe->e_code >= 0; pe++)
-        if (pe->e_code == error)
+    for (pe = errmsgs; pe->e_code >= 0; pe++) {
+        if (pe->e_code == error) {
             break;
+        }
+    }
     if (pe->e_code < 0) {
         pe->e_msg = strerror(error - 100);
         tp->th_code = EUNDEF; /* set 'undef' errorcode */
@@ -609,6 +493,90 @@ static void nak(int error)
     tp->th_msg[length] = '\0';
     length += 5;
     if (sendto(peer, buf, length, 0, (struct sockaddr *)&from, fromlen) !=
-        length)
+        length) {
         syslog(LOG_ERR, "nak: %m\n");
+    }
+}
+
+//
+// async_udp_echo_server.cpp
+// ~~~~~~~~~~~~~~~~~~~~~~~~~
+//
+// Copyright (c) 2003-2019 Christopher M. Kohlhoff (chris at kohlhoff dot com)
+//
+// Distributed under the Boost Software License, Version 1.0. (See accompanying
+// file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
+//
+
+#include "asio.hpp"
+
+#include <cstdlib>
+#include <iostream>
+
+using asio::ip::udp;
+
+class server
+{
+public:
+    server(asio::io_context &io_context, short port)
+        : socket_(io_context, udp::endpoint(udp::v4(), port))
+    {
+        do_receive();
+    }
+
+    void do_receive()
+    {
+        socket_.async_receive_from(
+            asio::buffer(rxdata_, max_length), sender_endpoint_,
+            [this](std::error_code ec, std::size_t bytes_recvd) {
+                if (!ec && bytes_recvd > 0) {
+                    struct tftphdr *tp = (struct tftphdr *)rxdata_;
+                    tp->th_opcode = ntohs(tp->th_opcode);
+                    if (tp->th_opcode == WRQ) {
+                        tftp(tp, bytes_recvd);
+                    } else {
+                        exit(EXIT_FAILURE);
+                    }
+                } else {
+                    do_receive();
+                }
+            });
+    }
+
+    void do_send(const std::vector<char> &txdata)
+    {
+        socket_.async_send_to(
+            asio::buffer(txdata), sender_endpoint_,
+            [this](std::error_code /*ec*/, std::size_t /*bytes_sent*/) {
+                // XXX do_receive();
+            });
+    }
+
+private:
+    udp::socket socket_;
+    udp::endpoint sender_endpoint_;
+    enum
+    {
+        max_length = PKTSIZE
+    };
+    char rxdata_[max_length];
+};
+
+int main(int argc, char *argv[])
+{
+    try {
+        if (argc != 2) {
+            std::cerr << "Usage: tftpd <port>\n";
+            return 0;
+        }
+
+        asio::io_context io_context;
+        server s(io_context, std::strtol(argv[1], nullptr, 10));
+        io_context.run();
+    } catch (std::exception &e) {
+        std::cerr << "Exception: " << e.what() << "\n";
+        return 1;
+    }
+
+    return 0;
 }

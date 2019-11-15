@@ -565,7 +565,7 @@ void setrexmt(int argc, char *argv[])
         printf("usage: %s value\n", argv[0]);
         return;
     }
-    t = atoi(argv[1]);
+    t = strtol(argv[1], NULL, 10);
     if (t < 0)
         printf("%s: bad value\n", argv[1]);
     else
@@ -590,7 +590,7 @@ void settimeout(int argc, char *argv[])
         printf("usage: %s value\n", argv[0]);
         return;
     }
-    t = atoi(argv[1]);
+    t = strtol(argv[1], NULL, 10);
     if (t < 0)
         printf("%s: bad value\n", argv[1]);
     else

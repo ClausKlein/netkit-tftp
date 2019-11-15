@@ -76,7 +76,7 @@ static int timeout;
 static sigjmp_buf timeoutbuf;
 
 static int makerequest(int request, char *name, struct tftphdr *tp, char *mode);
-static void nak(int errnor);
+static void nak(int error);
 static void tpacket(const char *s, struct tftphdr *tp, int n);
 static void startclock(void);
 static void stopclock(void);
