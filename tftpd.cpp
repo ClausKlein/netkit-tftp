@@ -48,6 +48,7 @@ char copyright[] =
 #include "tftp/tftpsubs.h"
 
 #include <arpa/tftp.h>
+#include <assert.h>
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -72,13 +73,11 @@ char copyright[] =
 #define TIMEOUT 5
 
 // TODO extern interface:
-struct formats;
-int tftp(struct tftphdr *tp, size_t size);
+// XXX int tftp(struct tftphdr *tp, size_t size);
 
-// static void nak(int error);
+struct formats;
 static int sendfile(struct formats *pf);
 static int recvfile(struct formats *pf);
-
 static int validate_access(const char *filename, int mode);
 
 static int peer;
@@ -111,7 +110,8 @@ struct formats
 /*
  * Handle initial connection protocol.
  */
-int tftp(struct tftphdr *tp, size_t size)
+// XXX int tftp(struct tftphdr *tp, size_t size)
+int tftp(const std::vector<char> &buf)
 {
     char *cp;
     bool first = true;
@@ -119,15 +119,19 @@ int tftp(struct tftphdr *tp, size_t size)
     struct formats *pf;
     char *filename, *mode = NULL;
 
+    struct tftphdr *tp = (struct tftphdr *)buf.data();
     filename = cp = tp->th_stuff;
+    // XXX assert(cp == buf.data());
     do {
-        while (cp < buf + size) {
+        // XXX for(const char& c: buf)
+        while (cp < buf.data() + buf.size()) {
             if (*cp == '\0') {
                 break;
             }
             cp++;
         }
         if (*cp != '\0') {
+            syslog(LOG_NOTICE, "tftpd: missing filename\n");
             // nak(EBADOP);
             return (EBADOP);
         }
@@ -150,17 +154,19 @@ int tftp(struct tftphdr *tp, size_t size)
         }
     }
     if (pf->f_mode == 0) {
+        syslog(LOG_NOTICE, "tftpd: missing mode\n");
         // nak(EBADOP);
         return (EBADOP);
     }
 
-    ecode = (*pf->f_validate)(filename, tp->th_opcode);
+    ecode = (*pf->f_validate)(filename, tp->th_opcode); // validate_access()
     if (ecode != 0) {
         /*
          * Avoid storms of naks to a RRQ broadcast for a relative
          * bootfile pathname from a diskless Sun.
          */
         if (suppress_naks && *filename != '/' && ecode == ENOTFOUND) {
+            syslog(LOG_NOTICE, "tftpd: deny to asscess file: %s\n", filename);
             return (0);
         }
         // nak(ecode);
@@ -168,9 +174,11 @@ int tftp(struct tftphdr *tp, size_t size)
     }
 
     if (tp->th_opcode == WRQ) {
-        // NO! (*pf->f_recv)(pf);
+        syslog(LOG_NOTICE, "tftpd: not yet implemented write request: %s\n",
+               filename);
+        // NO! (*pf->f_recv)(pf);    // recvfile()
     } else {
-        // NEVER! (*pf->f_send)(pf);
+        // NEVER! (*pf->f_send)(pf); // sendfile()
         return (EBADOP);
     }
     return (0);
@@ -200,6 +208,7 @@ static int validate_access(const char *filename, int mode)
         syslog(LOG_NOTICE, "tftpd: serving file from %s\n", dirs[0]);
         /*chdir(dirs[0]);*/
         if (chdir(dirs[0]) < 0) {
+            syslog(LOG_WARNING, "tftpd: chdir: %m\n");
             return (EACCESS);
         }
         while (*filename == '/') {
@@ -212,6 +221,7 @@ static int validate_access(const char *filename, int mode)
             }
         }
         if (*dirp == 0 && dirp != dirs) {
+            syslog(LOG_WARNING, "tftpd: invalid root dir!\n");
             return (EACCESS);
         }
     }
@@ -223,6 +233,7 @@ static int validate_access(const char *filename, int mode)
                filename);
         return EACCESS;
     }
+
     for (cp = filename + 1; *cp != 0; cp++) {
         if (*cp == '.' && strncmp(cp - 1, "/../", 4) == 0) {
             syslog(LOG_WARNING, "tftpd: Blocked illegal request for %s\n",
@@ -230,11 +241,12 @@ static int validate_access(const char *filename, int mode)
             return (EACCESS);
         }
     }
+
     if (stat(filename, &stbuf) < 0) {
-        if (mode != WRQ) {
+        if (mode == RRQ) {
+            syslog(LOG_WARNING, "tftpd: file not found %s\n", filename);
             return (errno == ENOENT ? ENOTFOUND : EACCESS);
         }
-    } else {
 
 #if 0
 	/*
@@ -256,17 +268,23 @@ static int validate_access(const char *filename, int mode)
 
         if (mode == RRQ) {
             if ((stbuf.st_mode & S_IROTH) == 0) {
+                syslog(LOG_WARNING, "tftpd: file has not S_IROTH set\n");
                 return (EACCESS);
             }
+
+#if 0
         } else {
             if ((stbuf.st_mode & S_IWOTH) == 0) {
+                syslog(LOG_WARNING, "tftpd: file has not S_IWOTH set\n");
                 return (EACCESS);
             }
+#endif
+
         }
     }
 
     fd = open(filename,
-              (mode == RRQ ? O_RDONLY : (O_WRONLY | O_TRUNC | O_CREAT)), 0600);
+              (mode == RRQ ? O_RDONLY : (O_WRONLY | O_TRUNC | O_CREAT)), 0666);
     if (fd < 0) {
         return (errno + 100);
     }
@@ -274,6 +292,7 @@ static int validate_access(const char *filename, int mode)
     if (file == NULL) {
         return errno + 100;
     }
+    syslog(LOG_NOTICE, "tftpd: successfully open file\n");
     return (0);
 }
 
@@ -318,7 +337,7 @@ static int sendfile(struct formats *pf)
     send_data:
         if (sendto(peer, dp, size + 4, 0, (struct sockaddr *)&from, fromlen) !=
             size + 4) {
-            syslog(LOG_ERR, "tftpd: write: %m\n");
+            syslog(LOG_ERR, "tftpd: data write: %m\n");
             break;
         }
 
@@ -328,7 +347,7 @@ static int sendfile(struct formats *pf)
             n = recv(peer, ackbuf, sizeof(ackbuf), 0);
             alarm(0);
             if (n < 0) {
-                syslog(LOG_ERR, "tftpd: read: %m\n");
+                syslog(LOG_ERR, "tftpd: read ack: %m\n");
                 return 0;
             }
             ap->th_opcode = ntohs((u_short)ap->th_opcode);
@@ -388,7 +407,7 @@ static int recvfile(struct formats *pf)
         send_ack:
             if (sendto(peer, ackbuf, 4, 0, (struct sockaddr *)&from, fromlen) !=
                 4) {
-                syslog(LOG_ERR, "tftpd: write: %m\n");
+                syslog(LOG_ERR, "tftpd: write ack: %m\n");
                 break;
             }
 
@@ -398,7 +417,7 @@ static int recvfile(struct formats *pf)
                 n = recv(peer, dp, PKTSIZE, 0);
                 alarm(0);
                 if (n < 0) { /* really? */
-                    syslog(LOG_ERR, "tftpd: read: %m\n");
+                    syslog(LOG_ERR, "tftpd: read data: %m\n");
                     return 0;
                 }
                 dp->th_opcode = ntohs((u_short)dp->th_opcode);
@@ -440,9 +459,10 @@ static int recvfile(struct formats *pf)
     ap->th_block = htons((u_short)(block));
     (void)sendto(peer, ackbuf, 4, 0, (struct sockaddr *)&from, fromlen);
 
-    mysignal(SIGALRM, justquit);         /* FIXME just quit on timeout */
-    alarm(rexmtval);                     // FIXME
-    n = recv(peer, buf, sizeof(buf), 0); /* normally times out and quits */
+    mysignal(SIGALRM, justquit); /* FIXME just quit on timeout */
+    alarm(rexmtval);             // FIXME
+    n = recv(peer, buf, sizeof(buf),
+             0); /* TODO(buf used!) normally times out and quits */
     alarm(0);
     if (n >= 4 &&                /* if read some data */
         dp->th_opcode == DATA && /* and got a data block */
@@ -530,13 +550,14 @@ public:
 
     void do_receive()
     {
+        rxdata_.resize(max_length);
         socket_.async_receive_from(
             asio::buffer(rxdata_, max_length), sender_endpoint_,
             [this](std::error_code ec, std::size_t bytes_recvd) {
                 if (!ec && bytes_recvd > 0) {
-                    struct tftphdr *tp = (struct tftphdr *)rxdata_;
-                    int error = tftp(tp, bytes_recvd);
-                    if (error > 0) {
+                    rxdata_.resize(bytes_recvd);
+                    int error = tftp(rxdata_);
+                    if (error != 0) {
                         send_nak(error);
                         exit(EXIT_FAILURE);
                     }
@@ -553,7 +574,7 @@ public:
             asio::buffer(txdata), sender_endpoint_,
             [this](std::error_code ec, std::size_t /*bytes_sent*/) {
                 if (ec) {
-                    syslog(LOG_ERR, "nak: %m\n");
+                    syslog(LOG_ERR, "do_send: %m\n");
                 }
                 // XXX do_receive();
             });
@@ -566,7 +587,7 @@ private:
     {
         max_length = PKTSIZE
     };
-    char rxdata_[max_length];
+    std::vector<char> rxdata_;
 };
 
 int main(int argc, char *argv[])

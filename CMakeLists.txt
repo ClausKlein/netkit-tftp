@@ -22,5 +22,7 @@ add_subdirectory(tftpd)
 add_executable(third_party_lib third_party_lib.cpp)
 target_link_libraries(third_party_lib asio::standalone Threads::Threads)
 
+enable_testing()
 add_executable(tftpd_test tftpd.cpp tftpsubs.cpp)
 target_link_libraries(tftpd_test asio::standalone Threads::Threads)
+add_test(NAME tftpd_test COMMAND tftpd_test 1234)
