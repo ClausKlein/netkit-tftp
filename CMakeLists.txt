@@ -19,5 +19,8 @@ set(MAN_DIR "${CMAKE_INSTALL_PREFIX}/share/man")
 add_subdirectory(tftp)
 add_subdirectory(tftpd)
 
+add_executable(third_party_lib third_party_lib.cpp)
+target_link_libraries(third_party_lib asio::standalone Threads::Threads)
+
 add_executable(tftpd_test tftpd.cpp tftpsubs.cpp)
 target_link_libraries(tftpd_test asio::standalone Threads::Threads)

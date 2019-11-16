@@ -75,9 +75,9 @@ char copyright[] =
 struct formats;
 int tftp(struct tftphdr *tp, size_t size);
 
-static void nak(int error);
-static void sendfile(struct formats *pf);
-static void recvfile(struct formats *pf);
+// static void nak(int error);
+static int sendfile(struct formats *pf);
+static int recvfile(struct formats *pf);
 
 static int validate_access(const char *filename, int mode);
 
@@ -101,8 +101,8 @@ struct formats
 {
     const char *f_mode;
     int (*f_validate)(const char *, int);
-    void (*f_send)(struct formats *);
-    void (*f_recv)(struct formats *);
+    int (*f_send)(struct formats *);
+    int (*f_recv)(struct formats *);
     int f_convert;
 } formats[] = {{"netascii", validate_access, sendfile, recvfile, 1},
                {"octet", validate_access, sendfile, recvfile, 0},
@@ -128,8 +128,8 @@ int tftp(struct tftphdr *tp, size_t size)
             cp++;
         }
         if (*cp != '\0') {
-            nak(EBADOP);
-            return (1);
+            // nak(EBADOP);
+            return (EBADOP);
         }
         if (first) {
             mode = ++cp;
@@ -150,8 +150,8 @@ int tftp(struct tftphdr *tp, size_t size)
         }
     }
     if (pf->f_mode == 0) {
-        nak(EBADOP);
-        return (1);
+        // nak(EBADOP);
+        return (EBADOP);
     }
 
     ecode = (*pf->f_validate)(filename, tp->th_opcode);
@@ -163,16 +163,15 @@ int tftp(struct tftphdr *tp, size_t size)
         if (suppress_naks && *filename != '/' && ecode == ENOTFOUND) {
             return (0);
         }
-        nak(ecode);
-        return (1);
+        // nak(ecode);
+        return (ecode);
     }
 
     if (tp->th_opcode == WRQ) {
         // NO! (*pf->f_recv)(pf);
     } else {
         // NEVER! (*pf->f_send)(pf);
-        nak(EBADOP);
-        return 1;
+        return (EBADOP);
     }
     return (0);
 }
@@ -286,7 +285,7 @@ static void timer(int signum)
 
     timeout += rexmtval;
     if (timeout >= maxtimeout) {
-        exit(1);
+        exit(EXIT_FAILURE);
     }
     siglongjmp(timeoutbuf, 1);
 }
@@ -294,7 +293,7 @@ static void timer(int signum)
 /*
  * Send the requested file.
  */
-static void sendfile(struct formats *pf)
+static int sendfile(struct formats *pf)
 {
     struct tftphdr *dp;
     struct tftphdr *ap; /* ack packet */
@@ -308,8 +307,8 @@ static void sendfile(struct formats *pf)
     do {
         size = readit(file, &dp, pf->f_convert);
         if (size < 0) {
-            nak(errno + 100);
-            break;
+            // nak(errno + 100);
+            return (errno + 100);
         }
         dp->th_opcode = htons((u_short)DATA);
         dp->th_block = htons((u_short)block);
@@ -330,13 +329,13 @@ static void sendfile(struct formats *pf)
             alarm(0);
             if (n < 0) {
                 syslog(LOG_ERR, "tftpd: read: %m\n");
-                return;
+                return 0;
             }
             ap->th_opcode = ntohs((u_short)ap->th_opcode);
             ap->th_block = ntohs((u_short)ap->th_block);
 
             if (ap->th_opcode == ERROR) {
-                return;
+                return 0;
             }
 
             if (ap->th_opcode == ACK) {
@@ -354,18 +353,20 @@ static void sendfile(struct formats *pf)
         block++;
     } while (size == SEGSIZE);
     // XXX abort: (void)fclose(file);
+
+    return 0;
 }
 
 static void justquit(int signum)
 {
     (void)signum;
-    exit(0);
+    exit(EXIT_SUCCESS);
 }
 
 /*
  * Receive a file.
  */
-static void recvfile(struct formats *pf)
+static int recvfile(struct formats *pf)
 {
     struct tftphdr *dp;
     struct tftphdr *ap; /* ack buffer */
@@ -398,12 +399,12 @@ static void recvfile(struct formats *pf)
                 alarm(0);
                 if (n < 0) { /* really? */
                     syslog(LOG_ERR, "tftpd: read: %m\n");
-                    return;
+                    return 0;
                 }
                 dp->th_opcode = ntohs((u_short)dp->th_opcode);
                 dp->th_block = ntohs((u_short)dp->th_block);
                 if (dp->th_opcode == ERROR) {
-                    return;
+                    return 0;
                 }
                 if (dp->th_opcode == DATA) {
                     if (dp->th_block == block) {
@@ -422,11 +423,12 @@ static void recvfile(struct formats *pf)
             size = writeit(file, &dp, n - 4, pf->f_convert);
             if (size != (n - 4)) { /* ahem */
                 if (size < 0) {
-                    nak(errno + 100);
+                    // nak(errno + 100);
+                    return (errno + 100);
                 } else {
-                    nak(ENOSPACE);
+                    // nak(ENOSPACE);
+                    return (ENOSPACE);
                 }
-                return;
             }
         } while (size == SEGSIZE);
 
@@ -448,6 +450,8 @@ static void recvfile(struct formats *pf)
         (void)sendto(peer, ackbuf, 4, 0, (struct sockaddr *)&from,
                      fromlen); /* resend final ack */
     }
+
+    return 0;
 }
 
 struct errmsg
@@ -464,42 +468,8 @@ struct errmsg
                {ENOUSER, "No such user"},
                {-1, 0}};
 
-/*
- * Send a nak packet (error message).
- * Error code passed in is one of the
- * standard TFTP codes, or a UNIX errno
- * offset by 100.
- */
-static void nak(int error)
-{
-    struct tftphdr *tp;
-    int length;
-    struct errmsg *pe;
-
-    tp = (struct tftphdr *)buf;
-    tp->th_opcode = htons((u_short)ERROR);
-    tp->th_code = htons((u_short)error);
-    for (pe = errmsgs; pe->e_code >= 0; pe++) {
-        if (pe->e_code == error) {
-            break;
-        }
-    }
-    if (pe->e_code < 0) {
-        pe->e_msg = strerror(error - 100);
-        tp->th_code = EUNDEF; /* set 'undef' errorcode */
-    }
-    strcpy(tp->th_msg, pe->e_msg);
-    length = strlen(pe->e_msg);
-    tp->th_msg[length] = '\0';
-    length += 5;
-    if (sendto(peer, buf, length, 0, (struct sockaddr *)&from, fromlen) !=
-        length) {
-        syslog(LOG_ERR, "nak: %m\n");
-    }
-}
-
 //
-// async_udp_echo_server.cpp
+// async_tftpd_server.cpp
 // ~~~~~~~~~~~~~~~~~~~~~~~~~
 //
 // Copyright (c) 2003-2019 Christopher M. Kohlhoff (chris at kohlhoff dot com)
@@ -524,6 +494,40 @@ public:
         do_receive();
     }
 
+    /*
+     * Send a nak packet (error message).
+     * Error code passed in is one of the standard TFTP codes,
+     * or a UNIX errno offset by 100.
+     */
+    void send_nak(int error)
+    {
+        struct tftphdr *tp;
+        int length;
+        struct errmsg *pe;
+        std::vector<char> txbuf;
+        txbuf.resize(PKTSIZE);
+
+        tp = (struct tftphdr *)txbuf.data();
+        tp->th_opcode = htons((u_short)ERROR);
+        tp->th_code = htons((u_short)error);
+        for (pe = errmsgs; pe->e_code >= 0; pe++) {
+            if (pe->e_code == error) {
+                break;
+            }
+        }
+        if (pe->e_code < 0) {
+            pe->e_msg = strerror(error - 100);
+            tp->th_code = htons((u_short)EUNDEF); /* set 'undef(0)' errorcode */
+        }
+        strcpy(tp->th_msg, pe->e_msg);
+        length = strlen(pe->e_msg);
+        tp->th_msg[length] = '\0';
+        length += 5;
+        txbuf.resize(length);
+
+        do_send(txbuf);
+    }
+
     void do_receive()
     {
         socket_.async_receive_from(
@@ -531,12 +535,12 @@ public:
             [this](std::error_code ec, std::size_t bytes_recvd) {
                 if (!ec && bytes_recvd > 0) {
                     struct tftphdr *tp = (struct tftphdr *)rxdata_;
-                    tp->th_opcode = ntohs(tp->th_opcode);
-                    if (tp->th_opcode == WRQ) {
-                        tftp(tp, bytes_recvd);
-                    } else {
+                    int error = tftp(tp, bytes_recvd);
+                    if (error > 0) {
+                        send_nak(error);
                         exit(EXIT_FAILURE);
                     }
+                    exit(EXIT_SUCCESS);
                 } else {
                     do_receive();
                 }
@@ -547,7 +551,10 @@ public:
     {
         socket_.async_send_to(
             asio::buffer(txdata), sender_endpoint_,
-            [this](std::error_code /*ec*/, std::size_t /*bytes_sent*/) {
+            [this](std::error_code ec, std::size_t /*bytes_sent*/) {
+                if (ec) {
+                    syslog(LOG_ERR, "nak: %m\n");
+                }
                 // XXX do_receive();
             });
     }
