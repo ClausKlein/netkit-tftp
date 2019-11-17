@@ -72,9 +72,6 @@ char copyright[] =
 
 #define TIMEOUT 5
 
-// TODO extern interface:
-// XXX int tftp(struct tftphdr *tp, size_t size);
-
 struct formats;
 static int sendfile(struct formats *pf);
 static int recvfile(struct formats *pf);
@@ -92,8 +89,8 @@ static socklen_t fromlen;
 static const char *default_dirs[] = {"/tmp/tftpboot", 0};
 static const char *const *dirs = default_dirs;
 
-static bool suppress_naks = false;
-static bool secure_tftp = false;
+static bool suppress_naks = true;
+static bool secure_tftp = true;
 static FILE *file;
 
 struct formats
@@ -185,15 +182,12 @@ int tftp(const std::vector<char> &buf)
 }
 
 /*
- * Validate file access.  Since we
- * have no uid or gid, for now require
- * file to exist and be publicly
- * readable/writable.
- * If we were invoked with arguments
- * from inetd then the file must also be
- * in one of the given directory prefixes.
- * Note also, full path name must be
- * given as we have no login directory.
+ * Validate file access.
+ *
+ * Since we have no uid or gid, for now require file to exist and be
+ * publicly readable/writable.  If we were invoked with arguments from inetd
+ * then the file must also be in one of the given directory prefixes.
+ * Note also, full path name must be given as we have no login directory.
  */
 static int validate_access(const char *filename, int mode)
 {
@@ -215,7 +209,7 @@ static int validate_access(const char *filename, int mode)
             filename++;
         }
     } else {
-        for (dirp = dirs; *dirp != nullptr; dirp++) {
+        for (dirp = dirs; *dirp != 0; dirp++) {
             if (strncmp(filename, *dirp, strlen(*dirp)) == 0) {
                 break;
             }
@@ -224,7 +218,9 @@ static int validate_access(const char *filename, int mode)
             syslog(LOG_WARNING, "tftpd: invalid root dir!\n");
             return (EACCESS);
         }
+        syslog(LOG_NOTICE, "tftpd: serving file %s\n", filename);
     }
+
     /*
      * prevent tricksters from getting around the directory restrictions
      */
@@ -272,14 +268,11 @@ static int validate_access(const char *filename, int mode)
                 return (EACCESS);
             }
 
-#if 0
-        } else {
+        } else if (secure_tftp) {
             if ((stbuf.st_mode & S_IWOTH) == 0) {
                 syslog(LOG_WARNING, "tftpd: file has not S_IWOTH set\n");
                 return (EACCESS);
             }
-#endif
-
         }
     }
 
@@ -371,7 +364,6 @@ static int sendfile(struct formats *pf)
         }
         block++;
     } while (size == SEGSIZE);
-    // XXX abort: (void)fclose(file);
 
     return 0;
 }
@@ -452,7 +444,6 @@ static int recvfile(struct formats *pf)
         } while (size == SEGSIZE);
 
         write_behind(file, pf->f_convert);
-        // XXX (void)fclose(file); /* close data file */
     }
 
     ap->th_opcode = htons((u_short)ACK); /* send the "final" ack */
@@ -559,12 +550,15 @@ public:
                     int error = tftp(rxdata_);
                     if (error != 0) {
                         send_nak(error);
-                        exit(EXIT_FAILURE);
+                        // XXX exit(EXIT_FAILURE);
                     }
-                    exit(EXIT_SUCCESS);
-                } else {
-                    do_receive();
+
+                    // XXX exit(EXIT_SUCCESS);
                 }
+
+                // TODO: receive data ...
+                syslog(LOG_NOTICE, "do_receive again:\n");
+                do_receive();
             });
     }
 
@@ -576,7 +570,7 @@ public:
                 if (ec) {
                     syslog(LOG_ERR, "do_send: %m\n");
                 }
-                // XXX do_receive();
+                do_receive();
             });
     }
 
