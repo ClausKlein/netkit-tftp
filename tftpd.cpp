@@ -48,33 +48,31 @@ char copyright[] =
 #include "tftp/tftpsubs.h"
 
 #include <arpa/tftp.h>
-#include <assert.h>
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <grp.h>
-#include <memory>
-#include <netdb.h>
 #include <netinet/in.h>
 #include <pwd.h>
-#include <setjmp.h>
-#include <signal.h>
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/ioctl.h>
-#include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <syslog.h>
 #include <unistd.h>
+// XXX #include <sys/ioctl.h>
+// XXX #include <sys/socket.h>
+// XXX #include <setjmp.h>
+// XXX #include <signal.h>
+
+#include <memory>
 #include <vector>
 
 #define TIMEOUT 5
 
 struct formats;
-static int sendfile(struct formats *pf);
-static int recvfile(struct formats *pf);
+// XXX static int sendfile(struct formats *pf);
+// XXX static int recvfile(struct formats *pf);
 static int validate_access(const char *filename, int mode);
 
 static int peer;
@@ -89,25 +87,25 @@ static socklen_t fromlen;
 static const char *default_dirs[] = {"/tmp/tftpboot", 0};
 static const char *const *dirs = default_dirs;
 
-static bool suppress_naks = true;
-static bool secure_tftp = true;
+static bool suppress_naks = false;
+static bool secure_tftp = false;
 static FILE *file;
 
 struct formats
 {
     const char *f_mode;
-    int (*f_validate)(const char *, int);
-    int (*f_send)(struct formats *);
-    int (*f_recv)(struct formats *);
+    // int (*f_validate)(const char *, int);
+    // int (*f_send)(struct formats *);
+    // int (*f_recv)(struct formats *);
     int f_convert;
-} formats[] = {{"netascii", validate_access, sendfile, recvfile, 1},
-               {"octet", validate_access, sendfile, recvfile, 0},
-               {0, 0, 0, 0, 0}};
+} formats[] =
+    { // XXX {"netascii", /* validate_access, sendfile, recvfile, */ 1},
+        {"octet", /* validate_access, sendfile, recvfile, */ 0},
+        {0, 0}};
 
 /*
  * Handle initial connection protocol.
  */
-// XXX int tftp(struct tftphdr *tp, size_t size)
 int tftp(const std::vector<char> &buf)
 {
     char *cp;
@@ -118,9 +116,8 @@ int tftp(const std::vector<char> &buf)
 
     struct tftphdr *tp = (struct tftphdr *)buf.data();
     filename = cp = tp->th_stuff;
-    // XXX assert(cp == buf.data());
     do {
-        // XXX for(const char& c: buf)
+        // TODO: for(const char& c: buf)
         while (cp < buf.data() + buf.size()) {
             if (*cp == '\0') {
                 break;
@@ -145,18 +142,19 @@ int tftp(const std::vector<char> &buf)
             *cp = tolower(*cp);
         }
     }
+
     for (pf = formats; pf->f_mode != nullptr; pf++) {
         if (strcmp(pf->f_mode, mode) == 0) {
             break;
         }
     }
     if (pf->f_mode == 0) {
-        syslog(LOG_NOTICE, "tftpd: missing mode\n");
-        // nak(EBADOP);
+        syslog(LOG_NOTICE, "tftpd: wrong mode\n");
         return (EBADOP);
     }
 
-    ecode = (*pf->f_validate)(filename, tp->th_opcode); // validate_access()
+    tp->th_opcode = ntohs(tp->th_opcode);
+    ecode = validate_access(filename, tp->th_opcode);
     if (ecode != 0) {
         /*
          * Avoid storms of naks to a RRQ broadcast for a relative
@@ -171,11 +169,10 @@ int tftp(const std::vector<char> &buf)
     }
 
     if (tp->th_opcode == WRQ) {
-        syslog(LOG_NOTICE, "tftpd: not yet implemented write request: %s\n",
-               filename);
         // NO! (*pf->f_recv)(pf);    // recvfile()
     } else {
         // NEVER! (*pf->f_send)(pf); // sendfile()
+        syslog(LOG_NOTICE, "tftpd: only upload supported!\n");
         return (EBADOP);
     }
     return (0);
@@ -202,7 +199,7 @@ static int validate_access(const char *filename, int mode)
         syslog(LOG_NOTICE, "tftpd: serving file from %s\n", dirs[0]);
         /*chdir(dirs[0]);*/
         if (chdir(dirs[0]) < 0) {
-            syslog(LOG_WARNING, "tftpd: chdir: %m\n");
+            syslog(LOG_WARNING, "tftpd: chdir: %s\n", strerror(errno));
             return (EACCESS);
         }
         while (*filename == '/') {
@@ -239,10 +236,12 @@ static int validate_access(const char *filename, int mode)
     }
 
     if (stat(filename, &stbuf) < 0) {
-        if (mode == RRQ) {
+        // stat error, no such file or no read access
+        if (mode == RRQ || secure_tftp) {
             syslog(LOG_WARNING, "tftpd: file not found %s\n", filename);
             return (errno == ENOENT ? ENOTFOUND : EACCESS);
         }
+    }
 
 #if 0
 	/*
@@ -262,17 +261,16 @@ static int validate_access(const char *filename, int mode)
 	}
 #endif
 
-        if (mode == RRQ) {
-            if ((stbuf.st_mode & S_IROTH) == 0) {
-                syslog(LOG_WARNING, "tftpd: file has not S_IROTH set\n");
-                return (EACCESS);
-            }
+    if (mode == RRQ) {
+        if ((stbuf.st_mode & S_IROTH) == 0) {
+            syslog(LOG_WARNING, "tftpd: file has not S_IROTH set\n");
+            return (EACCESS);
+        }
 
-        } else if (secure_tftp) {
-            if ((stbuf.st_mode & S_IWOTH) == 0) {
-                syslog(LOG_WARNING, "tftpd: file has not S_IWOTH set\n");
-                return (EACCESS);
-            }
+    } else if (secure_tftp) {
+        if ((stbuf.st_mode & S_IWOTH) == 0) {
+            syslog(LOG_WARNING, "tftpd: file has not S_IWOTH set\n");
+            return (EACCESS);
         }
     }
 
@@ -289,6 +287,7 @@ static int validate_access(const char *filename, int mode)
     return (0);
 }
 
+#if 0
 static int timeout;
 static sigjmp_buf timeoutbuf;
 static void timer(int signum)
@@ -453,7 +452,7 @@ static int recvfile(struct formats *pf)
     mysignal(SIGALRM, justquit); /* FIXME just quit on timeout */
     alarm(rexmtval);             // FIXME
     n = recv(peer, buf, sizeof(buf),
-             0); /* TODO(buf used!) normally times out and quits */
+             0); /* normally times out and quits */
     alarm(0);
     if (n >= 4 &&                /* if read some data */
         dp->th_opcode == DATA && /* and got a data block */
@@ -464,6 +463,7 @@ static int recvfile(struct formats *pf)
 
     return 0;
 }
+#endif
 
 struct errmsg
 {
@@ -489,10 +489,26 @@ struct errmsg
 // file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
 //
 
-#include "asio.hpp"
+// #include "asio.hpp"
+
+#include <type_traits>
+
+#include <asio/compose.hpp>
+#include <asio/coroutine.hpp>
+#include <asio/io_context.hpp>
+#include <asio/ip/udp.hpp>
+#include <asio/read.hpp>
+#include <asio/steady_timer.hpp>
+#include <asio/use_future.hpp>
+#include <asio/write.hpp>
 
 #include <cstdlib>
+#include <functional>
 #include <iostream>
+#include <memory>
+#include <sstream>
+#include <string>
+#include <utility>
 
 using asio::ip::udp;
 
@@ -503,6 +519,126 @@ public:
         : socket_(io_context, udp::endpoint(udp::v4(), port))
     {
         do_receive();
+    }
+
+    int recvfile(struct formats *pf)
+    {
+        struct tftphdr *dp;
+        struct tftphdr *ap; /* ack buffer */
+        volatile u_int16_t block = 0;
+        int rxlen = 0;
+
+        {
+            int size;
+            const std::shared_ptr<FILE> guard(file, std::fclose);
+            // mysignal(SIGALRM, timer); // FIXME
+            dp = w_init();
+            ap = (struct tftphdr *)ackbuf;
+            do {
+                // FIXME timeout = 0;
+                ap->th_opcode = htons((u_short)ACK);
+                ap->th_block = htons((u_short)block);
+                block++;
+                // (void)sigsetjmp(timeoutbuf, 1); // FIXME
+
+                // XXX #define REXMIT send_ack:
+                // XXX if (sendto(peer, ackbuf, 4, 0, (struct sockaddr *)&from,
+                // fromlen) != 4)
+                if (socket_.send_to(asio::buffer(ackbuf, 4),
+                                    sender_endpoint_) != 4) {
+                    syslog(LOG_ERR, "tftpd: write ack: %s\n", strerror(errno));
+                    return 1;
+                }
+
+                write_behind(file, pf->f_convert);
+
+#if 0
+                if (rxlen) {
+                    ssize_t n = write(fileno(file), rxdata_, rxlen);
+                    if (n != rxlen) {
+                        syslog(LOG_ERR, "tftpd: write file: %s\n", strerror(errno));
+                        return 1;
+                    }
+                }
+#endif
+
+                for (;;) {
+                    // alarm(rexmtval); // FIXME
+                    // XXX rxlen = recv(peer, dp, PKTSIZE, 0);
+                    rxdata_.resize(max_length);
+                    rxlen = socket_.receive_from(asio::buffer(rxdata_, PKTSIZE),
+                                                 sender_endpoint_);
+                    // XXX alarm(0);
+                    if (rxlen < 0) { /* really? */
+                        syslog(LOG_ERR, "tftpd: read data: %s\n",
+                               strerror(errno));
+                        return 1;
+                    }
+
+                    dp = (tftphdr *)rxdata_.data();
+                    dp->th_opcode = ntohs((u_short)dp->th_opcode);
+                    dp->th_block = ntohs((u_short)dp->th_block);
+                    if (dp->th_opcode == ERROR) {
+                        return 1;
+                    }
+                    if (dp->th_opcode == DATA) {
+                        if (dp->th_block == block) {
+                            break; /* normal */
+                        }
+
+#ifdef REXMIT
+                        /* Re-synchronize with the other side */
+                        (void)synchnet(peer, false);
+                        if (dp->th_block == (block - 1)) {
+                            // NOLINTNEXTLINE(cppcoreguidelines-avoid-goto)
+                            goto send_ack; /* rexmit */
+                        }
+#else
+                        syslog(LOG_ERR,
+                               "tftpd: wrong block num %u! expected: %u\n",
+                               dp->th_block, block);
+                        return 1;
+#endif
+                    }
+                }
+
+                /*  size = write(file, dp->th_data, rxlen - 4); */
+                size = writeit(file, &dp, rxlen - 4, pf->f_convert);
+                if (size != (rxlen - 4)) { /* ahem */
+                    if (size < 0) {
+                        return (errno + 100);
+                    } else {
+                        return (ENOSPACE);
+                    }
+                }
+            } while (size == SEGSIZE);
+
+            write_behind(file, pf->f_convert);
+        }
+
+        ap->th_opcode = htons((u_short)ACK); /* send the "final" ack */
+        ap->th_block = htons((u_short)(block));
+        // XXX (void)sendto(peer, ackbuf, 4, 0, (struct sockaddr *)&from,
+        // fromlen);
+        (void)socket_.send_to(asio::buffer(ackbuf, 4), sender_endpoint_);
+
+        // mysignal(SIGALRM, justquit); /* FIXME just quit on timeout */
+        // alarm(rexmtval);             // FIXME
+        // TODO(buf used!) normally times out and quits */
+        // XXX rxlen = recv(peer, buf, sizeof(buf), 0);
+        rxlen = socket_.receive_from(asio::buffer(buf, sizeof(buf)),
+                                     sender_endpoint_);
+        // alarm(0);
+        if (rxlen >= 4 &&            /* if read some data */
+            dp->th_opcode == DATA && /* and got a data block */
+            block == dp->th_block) { /* then my last ack was lost */
+            /* resend final ack */
+            // XXX (void)sendto(peer, ackbuf, 4, 0, (struct sockaddr *)&from,
+            // fromlen);
+            (void)socket_.send_to(asio::buffer(ackbuf, 4), sender_endpoint_);
+        }
+
+        return 0;
     }
 
     /*
@@ -530,9 +666,9 @@ public:
             pe->e_msg = strerror(error - 100);
             tp->th_code = htons((u_short)EUNDEF); /* set 'undef(0)' errorcode */
         }
-        strcpy(tp->th_msg, pe->e_msg);
+        strncpy(tp->th_msg, pe->e_msg, PKTSIZE - 5);
         length = strlen(pe->e_msg);
-        tp->th_msg[length] = '\0';
+        tp->th_msg[length] = '\0'; // TODO: check this! CK
         length += 5;
         txbuf.resize(length);
 
@@ -550,13 +686,16 @@ public:
                     int error = tftp(rxdata_);
                     if (error != 0) {
                         send_nak(error);
-                        // XXX exit(EXIT_FAILURE);
+                        // TODO exit(EXIT_FAILURE);
+                    } else {
+                        error = recvfile(formats);
+                        if (error == 0) {
+                            exit(EXIT_SUCCESS);
+                        }
+                        // TODO exit(EXIT_FAILURE);
                     }
-
-                    // XXX exit(EXIT_SUCCESS);
                 }
 
-                // TODO: receive data ...
                 syslog(LOG_NOTICE, "do_receive again:\n");
                 do_receive();
             });
@@ -568,7 +707,7 @@ public:
             asio::buffer(txdata), sender_endpoint_,
             [this](std::error_code ec, std::size_t /*bytes_sent*/) {
                 if (ec) {
-                    syslog(LOG_ERR, "do_send: %m\n");
+                    syslog(LOG_ERR, "do_send: %s\n", strerror(errno));
                 }
                 do_receive();
             });
