@@ -243,6 +243,7 @@ int write_behind(FILE *file, bool convert)
     return count;
 }
 
+#if 0
 /* When an error has occurred, it is possible that the two sides
  * are out of synch.  Ie: that what I think is the other side's
  * response to packet N is really their response to packet N-1.
@@ -286,3 +287,4 @@ void mysignal(int sig, void (*handler)(int))
     sa.sa_handler = handler;
     sigaction(sig, &sa, NULL);
 }
+#endif
