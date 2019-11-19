@@ -1,8 +1,10 @@
 #pragma once
 
+#include <stdint.h>
 #include <stdio.h>
 
-#define PKTSIZE (SEGSIZE + 4) /* should be moved to tftp.h */
+#define TFTP_HEADER (2 * sizeof(uint16_t)) /* should be moved to tftp.h */
+#define PKTSIZE (SEGSIZE + TFTP_HEADER)    /* should be moved to tftp.h */
 
 #ifdef __cplusplus
 #    define _Bool bool

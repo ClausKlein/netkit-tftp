@@ -54,18 +54,35 @@ char copyright[] =
 #include <grp.h>
 #include <netinet/in.h>
 #include <pwd.h>
-#include <stdlib.h>
-#include <string.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <syslog.h>
 #include <unistd.h>
-// XXX #include <sys/ioctl.h>
-// XXX #include <sys/socket.h>
-// XXX #include <setjmp.h>
-// XXX #include <signal.h>
 
+//
+// async_tftpd_server.cpp
+// ~~~~~~~~~~~~~~~~~~~~~~~~~
+// to much! #include "asio.hpp"
+//
+// not yet! #include <asio/coroutine.hpp>
+// not yet! #include <asio/compose.hpp>
+// not yet! #include <asio/use_future.hpp>
+// TODO #include <asio/steady_timer.hpp>
+
+#include <type_traits>
+
+#include <asio/io_context.hpp>
+#include <asio/ip/udp.hpp>
+#include <asio/read.hpp>
+#include <asio/write.hpp>
+
+#include <cstdlib>
+#include <cstring>
+#include <functional>
+#include <iostream>
 #include <memory>
+#include <string>
+#include <utility>
 #include <vector>
 
 #define TIMEOUT 5
@@ -101,12 +118,13 @@ struct formats
 } formats[] =
     { // XXX {"netascii", /* validate_access, sendfile, recvfile, */ 1},
         {"octet", /* validate_access, sendfile, recvfile, */ 0},
-        {0, 0}};
+        {0, 0}
+    };
 
 /*
  * Handle initial connection protocol.
  */
-int tftp(const std::vector<char> &buf)
+int tftp(const std::vector<char> &rxbuffer)
 {
     char *cp;
     bool first = true;
@@ -114,11 +132,13 @@ int tftp(const std::vector<char> &buf)
     struct formats *pf;
     char *filename, *mode = NULL;
 
-    struct tftphdr *tp = (struct tftphdr *)buf.data();
+    struct tftphdr *tp = (struct tftphdr *)rxbuffer.data();
+    tp->th_opcode = ntohs(tp->th_opcode);
     filename = cp = tp->th_stuff;
+
     do {
-        // TODO: for(const char& c: buf)
-        while (cp < buf.data() + buf.size()) {
+        // TODO: for(const char& c: rxbuffer)
+        while (cp < rxbuffer.data() + rxbuffer.size()) {
             if (*cp == '\0') {
                 break;
             }
@@ -126,7 +146,6 @@ int tftp(const std::vector<char> &buf)
         }
         if (*cp != '\0') {
             syslog(LOG_NOTICE, "tftpd: missing filename\n");
-            // nak(EBADOP);
             return (EBADOP);
         }
         if (first) {
@@ -148,12 +167,11 @@ int tftp(const std::vector<char> &buf)
             break;
         }
     }
-    if (pf->f_mode == 0) {
+    if (pf->f_mode == nullptr) {
         syslog(LOG_NOTICE, "tftpd: wrong mode\n");
         return (EBADOP);
     }
 
-    tp->th_opcode = ntohs(tp->th_opcode);
     ecode = validate_access(filename, tp->th_opcode);
     if (ecode != 0) {
         /*
@@ -162,9 +180,8 @@ int tftp(const std::vector<char> &buf)
          */
         if (suppress_naks && *filename != '/' && ecode == ENOTFOUND) {
             syslog(LOG_NOTICE, "tftpd: deny to asscess file: %s\n", filename);
-            return (0);
+            return 0;   // OK
         }
-        // nak(ecode);
         return (ecode);
     }
 
@@ -175,7 +192,8 @@ int tftp(const std::vector<char> &buf)
         syslog(LOG_NOTICE, "tftpd: only upload supported!\n");
         return (EBADOP);
     }
-    return (0);
+
+    return 0;   // OK
 }
 
 /*
@@ -283,8 +301,9 @@ static int validate_access(const char *filename, int mode)
     if (file == NULL) {
         return errno + 100;
     }
+
     syslog(LOG_NOTICE, "tftpd: successfully open file\n");
-    return (0);
+    return 0;   // OK
 }
 
 #if 0
@@ -318,7 +337,6 @@ static int sendfile(struct formats *pf)
     do {
         size = readit(file, &dp, pf->f_convert);
         if (size < 0) {
-            // nak(errno + 100);
             return (errno + 100);
         }
         dp->th_opcode = htons((u_short)DATA);
@@ -340,13 +358,13 @@ static int sendfile(struct formats *pf)
             alarm(0);
             if (n < 0) {
                 syslog(LOG_ERR, "tftpd: read ack: %m\n");
-                return 0;
+                return 0;   // OK
             }
             ap->th_opcode = ntohs((u_short)ap->th_opcode);
             ap->th_block = ntohs((u_short)ap->th_block);
 
             if (ap->th_opcode == ERROR) {
-                return 0;
+                return 0;   // OK
             }
 
             if (ap->th_opcode == ACK) {
@@ -364,7 +382,7 @@ static int sendfile(struct formats *pf)
         block++;
     } while (size == SEGSIZE);
 
-    return 0;
+    return 0;   // OK
 }
 
 static void justquit(int signum)
@@ -409,12 +427,12 @@ static int recvfile(struct formats *pf)
                 alarm(0);
                 if (n < 0) { /* really? */
                     syslog(LOG_ERR, "tftpd: read data: %m\n");
-                    return 0;
+                    return 0;   // OK
                 }
                 dp->th_opcode = ntohs((u_short)dp->th_opcode);
                 dp->th_block = ntohs((u_short)dp->th_block);
                 if (dp->th_opcode == ERROR) {
-                    return 0;
+                    return 0;   // OK
                 }
                 if (dp->th_opcode == DATA) {
                     if (dp->th_block == block) {
@@ -433,10 +451,8 @@ static int recvfile(struct formats *pf)
             size = writeit(file, &dp, n - 4, pf->f_convert);
             if (size != (n - 4)) { /* ahem */
                 if (size < 0) {
-                    // nak(errno + 100);
                     return (errno + 100);
                 } else {
-                    // nak(ENOSPACE);
                     return (ENOSPACE);
                 }
             }
@@ -461,7 +477,7 @@ static int recvfile(struct formats *pf)
                      fromlen); /* resend final ack */
     }
 
-    return 0;
+    return 0;   // OK
 }
 #endif
 
@@ -479,37 +495,6 @@ struct errmsg
                {ENOUSER, "No such user"},
                {-1, 0}};
 
-//
-// async_tftpd_server.cpp
-// ~~~~~~~~~~~~~~~~~~~~~~~~~
-//
-// Copyright (c) 2003-2019 Christopher M. Kohlhoff (chris at kohlhoff dot com)
-//
-// Distributed under the Boost Software License, Version 1.0. (See accompanying
-// file LICENSE_1_0.txt or copy at http://www.boost.org/LICENSE_1_0.txt)
-//
-
-// #include "asio.hpp"
-
-#include <type_traits>
-
-#include <asio/compose.hpp>
-#include <asio/coroutine.hpp>
-#include <asio/io_context.hpp>
-#include <asio/ip/udp.hpp>
-#include <asio/read.hpp>
-#include <asio/steady_timer.hpp>
-#include <asio/use_future.hpp>
-#include <asio/write.hpp>
-
-#include <cstdlib>
-#include <functional>
-#include <iostream>
-#include <memory>
-#include <sstream>
-#include <string>
-#include <utility>
-
 using asio::ip::udp;
 
 class server
@@ -523,63 +508,53 @@ public:
 
     int recvfile(struct formats *pf)
     {
-        struct tftphdr *dp;
-        struct tftphdr *ap; /* ack buffer */
+        struct tftphdr *ap = (struct tftphdr *)ackbuf; /* ptr to ack buffer */
         volatile u_int16_t block = 0;
-        int rxlen = 0;
 
         {
             int size;
+            int rxlen = 0;
             const std::shared_ptr<FILE> guard(file, std::fclose);
             // mysignal(SIGALRM, timer); // FIXME
-            dp = w_init();
-            ap = (struct tftphdr *)ackbuf;
+
+            struct tftphdr *dp = w_init(); // get first data buffer ptr
             do {
-                // FIXME timeout = 0;
                 ap->th_opcode = htons((u_short)ACK);
                 ap->th_block = htons((u_short)block);
                 block++;
-                // (void)sigsetjmp(timeoutbuf, 1); // FIXME
 
-                // XXX #define REXMIT send_ack:
-                // XXX if (sendto(peer, ackbuf, 4, 0, (struct sockaddr *)&from,
-                // fromlen) != 4)
-                if (socket_.send_to(asio::buffer(ackbuf, 4),
-                                    sender_endpoint_) != 4) {
-                    syslog(LOG_ERR, "tftpd: write ack: %s\n", strerror(errno));
-                    return 1;
-                }
-
-                write_behind(file, pf->f_convert);
-
-#if 0
-                if (rxlen) {
-                    ssize_t n = write(fileno(file), rxdata_, rxlen);
-                    if (n != rxlen) {
-                        syslog(LOG_ERR, "tftpd: write file: %s\n", strerror(errno));
-                        return 1;
-                    }
-                }
+#ifdef REXMIT
+                timeout = 0;
+            send_ack:
 #endif
 
+                if (socket_.send_to(asio::buffer(ackbuf, TFTP_HEADER),
+                                    sender_endpoint_) != TFTP_HEADER) {
+                    syslog(LOG_ERR, "tftpd: write ack: %s\n", strerror(errno));
+                    return -1;
+                }
+
+                int txlen = write_behind(
+                    file, pf->f_convert); // output the current buffer if needed
+                if (txlen < 0) {
+                    syslog(LOG_ERR, "tftpd: write file: %s\n", strerror(errno));
+                    return -1;
+                }
+
                 for (;;) {
-                    // alarm(rexmtval); // FIXME
-                    // XXX rxlen = recv(peer, dp, PKTSIZE, 0);
-                    rxdata_.resize(max_length);
-                    rxlen = socket_.receive_from(asio::buffer(rxdata_, PKTSIZE),
+                    // TODO: use asio::read_until(socket_, ...)
+                    rxlen = socket_.receive_from(asio::buffer(dp, PKTSIZE),
                                                  sender_endpoint_);
-                    // XXX alarm(0);
                     if (rxlen < 0) { /* really? */
                         syslog(LOG_ERR, "tftpd: read data: %s\n",
                                strerror(errno));
-                        return 1;
+                        return -1;
                     }
 
-                    dp = (tftphdr *)rxdata_.data();
                     dp->th_opcode = ntohs((u_short)dp->th_opcode);
                     dp->th_block = ntohs((u_short)dp->th_block);
                     if (dp->th_opcode == ERROR) {
-                        return 1;
+                        return -1;
                     }
                     if (dp->th_opcode == DATA) {
                         if (dp->th_block == block) {
@@ -587,7 +562,11 @@ public:
                         }
 
 #ifdef REXMIT
-                        /* Re-synchronize with the other side */
+                        timeout += rexmtval;
+                        if (timeout >= maxtimeout) {
+                            exit(EXIT_FAILURE);
+                        }
+                        /* TODO: Re-synchronize with the other side */
                         (void)synchnet(peer, false);
                         if (dp->th_block == (block - 1)) {
                             // NOLINTNEXTLINE(cppcoreguidelines-avoid-goto)
@@ -597,14 +576,16 @@ public:
                         syslog(LOG_ERR,
                                "tftpd: wrong block num %u! expected: %u\n",
                                dp->th_block, block);
-                        return 1;
+                        return -1;
 #endif
                     }
                 }
 
-                /*  size = write(file, dp->th_data, rxlen - 4); */
-                size = writeit(file, &dp, rxlen - 4, pf->f_convert);
-                if (size != (rxlen - 4)) { /* ahem */
+                int length = rxlen - TFTP_HEADER;
+                size =
+                    writeit(file, &dp, length,
+                            pf->f_convert); // write the current data segement
+                if (size != length) {  /* ahem */
                     if (size < 0) {
                         return (errno + 100);
                     } else {
@@ -613,32 +594,31 @@ public:
                 }
             } while (size == SEGSIZE);
 
-            write_behind(file, pf->f_convert);
+            write_behind(file, pf->f_convert); // write the final data segment
         }
 
         ap->th_opcode = htons((u_short)ACK); /* send the "final" ack */
         ap->th_block = htons((u_short)(block));
-        // XXX (void)sendto(peer, ackbuf, 4, 0, (struct sockaddr *)&from,
-        // fromlen);
-        (void)socket_.send_to(asio::buffer(ackbuf, 4), sender_endpoint_);
+        (void)socket_.send_to(asio::buffer(ackbuf, TFTP_HEADER),
+                              sender_endpoint_);
 
         // mysignal(SIGALRM, justquit); /* FIXME just quit on timeout */
         // alarm(rexmtval);             // FIXME
+        // TODO: use asio::read_until(socket_, ...)
+        size_t rxlen = socket_.receive_from(asio::buffer(buf, sizeof(buf)),
+                                            sender_endpoint_);
+
         // TODO(buf used!) normally times out and quits */
-        // XXX rxlen = recv(peer, buf, sizeof(buf), 0);
-        rxlen = socket_.receive_from(asio::buffer(buf, sizeof(buf)),
-                                     sender_endpoint_);
-        // alarm(0);
-        if (rxlen >= 4 &&            /* if read some data */
-            dp->th_opcode == DATA && /* and got a data block */
-            block == dp->th_block) { /* then my last ack was lost */
+        struct tftphdr *dp = (struct tftphdr *)buf;
+        if ((rxlen >= TFTP_HEADER) &&  /* if read some data */
+            (dp->th_opcode == DATA) && /* and got a data block */
+            (block == dp->th_block)) { /* then my last ack was lost */
             /* resend final ack */
-            // XXX (void)sendto(peer, ackbuf, 4, 0, (struct sockaddr *)&from,
-            // fromlen);
-            (void)socket_.send_to(asio::buffer(ackbuf, 4), sender_endpoint_);
+            (void)socket_.send_to(asio::buffer(ackbuf, TFTP_HEADER),
+                                  sender_endpoint_);
         }
 
-        return 0;
+        return 0;   // OK
     }
 
     /*
@@ -664,7 +644,7 @@ public:
         }
         if (pe->e_code < 0) {
             pe->e_msg = strerror(error - 100);
-            tp->th_code = htons((u_short)EUNDEF); /* set 'undef(0)' errorcode */
+            tp->th_code = htons((u_short)EUNDEF); /* set 'eundef(0)' errorcode */
         }
         strncpy(tp->th_msg, pe->e_msg, PKTSIZE - 5);
         length = strlen(pe->e_msg);
@@ -728,16 +708,17 @@ int main(int argc, char *argv[])
     try {
         if (argc != 2) {
             std::cerr << "Usage: tftpd <port>\n";
-            return 0;
+            return 0;   // OK
         }
 
         asio::io_context io_context;
         server s(io_context, std::strtol(argv[1], nullptr, 10));
+
         io_context.run();
     } catch (std::exception &e) {
         std::cerr << "Exception: " << e.what() << "\n";
-        return 1;
+        exit(EXIT_FAILURE);
     }
 
-    return 0;
+    exit(EXIT_SUCCESS);
 }
