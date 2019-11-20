@@ -64,11 +64,8 @@ char copyright[] =
 // ~~~~~~~~~~~~~~~~~~~~~~~~~
 // to much! #include "asio.hpp"
 //
-// not yet! #include <asio/coroutine.hpp>
-// not yet! #include <asio/compose.hpp>
 // not yet! #include <asio/use_future.hpp>
 
-#include "asio/read_until.hpp"
 #include <type_traits>
 
 #include <asio/io_context.hpp>
@@ -99,8 +96,8 @@ static int validate_access(const char *filename, int mode);
 static const int rexmtval = TIMEOUT;
 static const int maxtimeout = 5 * TIMEOUT;
 
-static char buf[PKTSIZE];
-static char ackbuf[PKTSIZE];
+// XXX static char buf[PKTSIZE];
+// XXX static char ackbuf[PKTSIZE];
 // XXX static struct sockaddr_storage from;
 // XXX static socklen_t fromlen;
 
@@ -621,6 +618,13 @@ public:
           timer_(io_context, std::chrono::seconds(maxtimeout)),
           timeout_(rexmtval)
     {
+        start_timeout(maxtimeout); // max idle wait ...
+        do_receive();
+    }
+
+private:
+    void start_timeout(size_t seconds) {
+        timer_.expires_after(std::chrono::seconds(seconds));
         timer_.async_wait([this](const std::error_code & /*error*/) {
             syslog(LOG_WARNING, "tftpd: timeout!\n");
             timeout_ += rexmtval;
@@ -632,161 +636,35 @@ public:
                 socket_.close();
             }
         });
-
-        do_receive();
     }
 
-private:
-    int recvfile(struct formats *pf)
+    void do_receive()
     {
-        struct tftphdr *ap = (struct tftphdr *)ackbuf; /* ptr to ack buffer */
-        volatile u_int16_t block = 0;
-
-        {
-            int size;
-            int rxlen = 0;
-            const std::shared_ptr<FILE> guard(file, std::fclose);
-
-            struct tftphdr *dp = w_init(); // get first data buffer ptr
-            do {
-                ap->th_opcode = htons((u_short)ACK);
-                ap->th_block = htons((u_short)block);
-                block++;
-
-            send_ack:
-                if (socket_.send_to(asio::buffer(ackbuf, TFTP_HEADER),
-                                    sender_endpoint_) != TFTP_HEADER) {
-                    syslog(LOG_ERR, "tftpd: write ack: %s\n", strerror(errno));
-                    return -1;
-                }
-
-                int txlen = write_behind(
-                    file, pf->f_convert); // output the current buffer if needed
-                if (txlen < 0) {
-                    syslog(LOG_ERR, "tftpd: write file: %s\n", strerror(errno));
-                    return -1;
-                }
-
-                for (;;) {
-                    timer_.expires_after(std::chrono::seconds(timeout_));
-                    rxlen = socket_.receive_from(asio::buffer(dp, PKTSIZE),
-                                                 sender_endpoint_);
-                    // TODO Run an asynchronous read operation with a timeout.
-                    // FIXME asio::async_read(socket_, asio::buffer(dp,
-                    // PKTSIZE), close_after(std::chrono::seconds(rexmtval),
-                    // socket_));
-                    if (rxlen < 0) { /* really? */
-                        syslog(LOG_ERR, "tftpd: read data: %s\n",
-                               strerror(errno));
-                        return -1;
-                    }
-
-                    dp->th_opcode = ntohs((u_short)dp->th_opcode);
-                    dp->th_block = ntohs((u_short)dp->th_block);
-                    if (dp->th_opcode == ERROR) {
-                        return -1;
-                    }
-                    if (dp->th_opcode == DATA) {
-                        if (dp->th_block == block) {
-                            break; /* normal */
-                        }
-
-                        /* TODO: Re-synchronize with the other side */
-                        (void)synchnet();
-                        if (dp->th_block == (block - 1)) {
-                            // NOLINTNEXTLINE(cppcoreguidelines-avoid-goto)
-                            goto send_ack; /* rexmit */
-                        }
-                    }
-                }
-
-                int length = rxlen - TFTP_HEADER;
-                size =
-                    writeit(file, &dp, length,
-                            pf->f_convert); // write the current data segement
-                if (size != length) {       /* ahem */
-                    if (size < 0) {
-                        return (errno + 100);
+        rxdata_.resize(max_length);
+        socket_.async_receive_from(
+            asio::buffer(rxdata_, max_length), sender_endpoint_,
+            [this](std::error_code ec, std::size_t bytes_recvd) {
+                if (!ec && bytes_recvd > 0) {
+                    rxdata_.resize(bytes_recvd);
+                    int error = tftp(rxdata_);
+                    if (error != 0) {
+                        send_nak(error);
                     } else {
-                        return (ENOSPACE);
+                        error = recvfile(formats);
+                        if (error == 0) {
+                            exit(EXIT_SUCCESS);
+                        }
                     }
                 }
-            } while (size == SEGSIZE);
 
-            write_behind(file, pf->f_convert); // write the final data segment
-        }
-
-        ap->th_opcode = htons((u_short)ACK); /* send the "final" ack */
-        ap->th_block = htons((u_short)(block));
-        (void)socket_.send_to(asio::buffer(ackbuf, TFTP_HEADER),
-                              sender_endpoint_);
-
-        // TODO: use asio::read_until(socket_, ...)
-        // FIXME asio::async_read(socket_, asio::buffer(dp, PKTSIZE),
-        // close_after(std::chrono::seconds(rexmtval), socket_));
-        timer_.expires_after(std::chrono::seconds(rexmtval));
-        size_t rxlen = socket_.receive_from(asio::buffer(buf, sizeof(buf)),
-                                            sender_endpoint_);
-
-        // TODO(buf used!) normally times out and quits */
-        struct tftphdr *dp = (struct tftphdr *)buf;
-        if ((rxlen >= TFTP_HEADER) &&  /* if read some data */
-            (dp->th_opcode == DATA) && /* and got a data block */
-            (block == dp->th_block)) { /* then my last ack was lost */
-            /* resend final ack */
-            (void)socket_.send_to(asio::buffer(ackbuf, TFTP_HEADER),
-                                  sender_endpoint_);
-        }
-
-        return 0; // OK
-    }
-
-    /* When an error has occurred, it is possible that the two sides
-     * are out of synch.  Ie: that what I think is the other side's
-     * response to packet N is really their response to packet N-1.
-     *
-     * So, to try to prevent that, we flush all the input queued up
-     * for us on the network connection on our host.
-     *
-     * We return the number of packets we flushed (mostly for reporting
-     * when trace is active).
-     */
-    void synchnet()
-    {
-        int i, j = 0;
-        char rbuf[PKTSIZE];
-        struct sockaddr_storage from;
-        socklen_t fromlen;
-        int s = socket_.native_handle();
-
-        while (true) {
-
-#ifdef TODO
-            asio::socket_base::bytes_readable command(true);
-            socket.io_control(command);
-            std::size_t bytes_readable = command.get();
-#endif
-
-            // XXX (void)ioctl(s, FIONREAD, &i);
-            std::size_t i = socket_.available();
-            if (i != 0) {
-                j++;
-                fromlen = sizeof(from);
-                (void)recvfrom(s, rbuf, sizeof(rbuf), 0,
-                               (struct sockaddr *)&from, &fromlen);
-            } else {
-                if (j != 0) {
-                    syslog(LOG_WARNING, "tftpd: discarded %d packets\n", j);
-                }
-                return;
-            }
-        }
+                exit(EXIT_FAILURE);
+                // syslog(LOG_NOTICE, "do_receive again:\n");
+                // do_receive();
+            });
     }
 
     /*
-     * Send a nak packet (error message).
-     * Error code passed in is one of the standard TFTP codes,
-     * or a UNIX errno offset by 100.
+     * Send a nak packet (error message).  Error code passed in is one of the standard TFTP codes, or a UNIX errno offset by 100.
      */
     void send_nak(int error)
     {
@@ -818,31 +696,6 @@ private:
         do_send(txbuf);
     }
 
-    void do_receive()
-    {
-        rxdata_.resize(max_length);
-        socket_.async_receive_from(
-            asio::buffer(rxdata_, max_length), sender_endpoint_,
-            [this](std::error_code ec, std::size_t bytes_recvd) {
-                if (!ec && bytes_recvd > 0) {
-                    rxdata_.resize(bytes_recvd);
-                    int error = tftp(rxdata_);
-                    if (error != 0) {
-                        send_nak(error);
-                    } else {
-                        error = recvfile(formats);
-                        if (error == 0) {
-                            exit(EXIT_SUCCESS);
-                        }
-                    }
-                }
-
-                exit(EXIT_FAILURE);
-                // syslog(LOG_NOTICE, "do_receive again:\n");
-                // do_receive();
-            });
-    }
-
     void do_send(const std::vector<char> &txdata)
     {
         socket_.async_send_to(
@@ -851,8 +704,143 @@ private:
                 if (ec) {
                     syslog(LOG_ERR, "do_send: %s\n", strerror(errno));
                 }
-                do_receive();
             });
+    }
+
+    int recvfile(struct formats *pf)
+    {
+        struct tftphdr *ap = (struct tftphdr *)ackbuf_; /* ptr to ack buffer */
+        volatile u_int16_t block = 0;
+
+        {
+            int size;
+            int rxlen = 0;
+            const std::shared_ptr<FILE> guard(file, std::fclose);
+
+            struct tftphdr *dp = w_init(); // get first data buffer ptr
+            do {
+                ap->th_opcode = htons((u_short)ACK);
+                ap->th_block = htons((u_short)block);
+                block++;
+
+            send_ack:
+                if (socket_.send_to(asio::buffer(ackbuf_, TFTP_HEADER),
+                                    sender_endpoint_) != TFTP_HEADER) {
+                    syslog(LOG_ERR, "tftpd: write ack: %s\n", strerror(errno));
+                    return -1;
+                }
+
+                int txlen = write_behind(
+                    file, pf->f_convert); // output the current buffer if needed
+                if (txlen < 0) {
+                    syslog(LOG_ERR, "tftpd: write file: %s\n", strerror(errno));
+                    return -1;
+                }
+
+                for (;;) {
+                    start_timeout(timeout_);
+                    // TODO Run an asynchronous read operation with a timeout.
+                    // FIXME asio::async_read(socket_, asio::buffer(dp,
+                    // PKTSIZE), close_after(std::chrono::seconds(rexmtval),
+                    // socket_));
+                    rxlen = socket_.receive_from(asio::buffer(dp, PKTSIZE),
+                                                 sender_endpoint_);
+                    if (rxlen < 0) { /* really? */
+                        syslog(LOG_ERR, "tftpd: read data: %s\n",
+                               strerror(errno));
+                        return -1;
+                    }
+
+                    dp->th_opcode = ntohs((u_short)dp->th_opcode);
+                    dp->th_block = ntohs((u_short)dp->th_block);
+                    if (dp->th_opcode == ERROR) {
+                        return -1;
+                    }
+                    if (dp->th_opcode == DATA) {
+                        if (dp->th_block == block) {
+                            break; /* normal */
+                        }
+
+                        synchnet(); // Re-synchronize with the other side
+
+                        if (dp->th_block == (block - 1)) {
+                            // NOLINTNEXTLINE(cppcoreguidelines-avoid-goto)
+                            goto send_ack; /* rexmit */
+                        }
+                    }
+                }
+
+                int length = rxlen - TFTP_HEADER;
+                size =
+                    writeit(file, &dp, length,
+                            pf->f_convert); // write the current data segement
+                if (size != length) {       /* ahem */
+                    if (size < 0) {
+                        return (errno + 100);
+                    } else {
+                        return (ENOSPACE);
+                    }
+                }
+            } while (size == SEGSIZE);
+
+            write_behind(file, pf->f_convert); // write the final data segment
+        }
+
+        ap->th_opcode = htons((u_short)ACK); /* send the "final" ack */
+        ap->th_block = htons((u_short)(block));
+        (void)socket_.send_to(asio::buffer(ackbuf_, TFTP_HEADER),
+                              sender_endpoint_);
+
+        start_timeout(rexmtval);
+        // FIXME asio::async_read(socket_, asio::buffer(dp, PKTSIZE),
+        // close_after(std::chrono::seconds(rexmtval), socket_));
+        size_t rxlen = socket_.receive_from(asio::buffer(rxbuf_, sizeof(rxbuf_)),
+                                            sender_endpoint_);
+
+        // NOTE: Normally times out and quits
+        struct tftphdr *dp = (struct tftphdr *)rxbuf_;
+        if ((rxlen >= TFTP_HEADER) &&  /* if read some data */
+            (dp->th_opcode == DATA) && /* and got a data block */
+            (block == dp->th_block)) { /* then my last ack was lost */
+            /* resend final ack */
+            (void)socket_.send_to(asio::buffer(ackbuf_, TFTP_HEADER),
+                                  sender_endpoint_);
+        }
+
+        return 0; // OK
+    }
+
+    /* When an error has occurred, it is possible that the two sides
+     * are out of synch.  Ie: that what I think is the other side's
+     * response to packet N is really their response to packet N-1.
+     *
+     * So, to try to prevent that, we flush all the input queued up
+     * for us on the network connection on our host.
+     *
+     * We return the number of packets we flushed (mostly for reporting
+     * when trace is active).
+     */
+    void synchnet()
+    {
+        int i, j = 0;
+        struct sockaddr_storage from;
+        socklen_t fromlen;
+        int s = socket_.native_handle();
+
+        while (true) {
+            std::size_t i = socket_.available();
+            if (i != 0) {
+                j++;
+                fromlen = sizeof(from);
+                (void)recvfrom(s, rxbuf_, sizeof(rxbuf_), 0,
+                               (struct sockaddr *)&from, &fromlen);
+            } else {
+                if (j != 0) {
+                    syslog(LOG_WARNING, "tftpd: discarded %d packets\n", j);
+                }
+                return;
+            }
+        }
     }
 
 private:
@@ -865,6 +853,8 @@ private:
     };
     std::vector<char> rxdata_;
     int timeout_;
+    char ackbuf_[PKTSIZE];
+    char rxbuf_[PKTSIZE];
 };
 
 int main(int argc, char *argv[])
