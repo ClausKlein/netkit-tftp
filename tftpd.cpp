@@ -624,7 +624,7 @@ public:
     server(asio::io_context &io_context, short port)
         : socket_(io_context, udp::endpoint(udp::v4(), port)),
           timer_(io_context, std::chrono::seconds(maxtimeout)),
-          timeout_(rexmtval)
+          timeout_(rexmtval), io_context_(io_context)
     {
         start_timeout(maxtimeout); // max idle wait ...
         do_receive();
@@ -633,16 +633,19 @@ public:
 private:
     void start_timeout(size_t seconds)
     {
+        timer_.cancel();    // TODO: needed? CK
         timer_.expires_after(std::chrono::seconds(seconds));
         timer_.async_wait([this](const std::error_code & /*error*/) {
             syslog(LOG_WARNING, "tftpd: timeout!\n");
             timeout_ += rexmtval;
             // Cancel all asynchronous operations associated with the socket.
-            socket_.cancel();
+            if (socket_.is_open()) {
+                socket_.cancel();
 
-            if (timeout_ >= maxtimeout) {
-                syslog(LOG_ERR, "tftpd: maxtimeout!\n");
-                socket_.close();
+                if (timeout_ >= maxtimeout) {
+                    syslog(LOG_ERR, "tftpd: maxtimeout!\n");
+                    socket_.close();
+                }
             }
         });
     }
@@ -661,15 +664,15 @@ private:
                     } else {
                         error = recvfile(formats);
                         if (error == 0) {
-                            exit(EXIT_SUCCESS);
+                            syslog(LOG_NOTICE, "well done!\n");
+                            start_timeout(maxtimeout); // max idle wait ...
+                            do_receive();
                         }
                     }
                 }
-
-                exit(EXIT_FAILURE);
-                // syslog(LOG_NOTICE, "do_receive again:\n");
-                // do_receive();
             });
+
+         // NOTE: we need to return! CK
     }
 
     /*
@@ -753,10 +756,10 @@ private:
                 }
 
                 for (;;) {
-                    start_timeout(timeout_);
 
 #ifndef USE_SYNC_RECEIVE
                     // Run an asynchronous read operation with a timeout.
+                    timer_.cancel();
                     socket_.async_receive_from(
                         asio::buffer(dp, PKTSIZE), sender_endpoint_,
                         [this, &rxlen](std::error_code ec,
@@ -767,7 +770,9 @@ private:
                                 rxlen = bytes_recvd;
                             }
                         });
+                    run(std::chrono::seconds(timeout_));
 #else
+                    start_timeout(timeout_);
                     rxlen = socket_.receive_from(asio::buffer(dp, PKTSIZE),
                                                  sender_endpoint_);
 #endif
@@ -824,33 +829,25 @@ private:
 
         start_timeout(rexmtval);
         timeout_ = maxtimeout; // NOTE: Normally times out and quits
-        size_t rxlen = 0;
 
-#ifndef USE_SYNC_RECEIVE
         // Run an asynchronous read operation with a timeout.
         socket_.async_receive_from(
             asio::buffer(rxbuf_, sizeof(rxbuf_)), sender_endpoint_,
-            [this, &rxlen](std::error_code ec, std::size_t bytes_recvd) {
-                if (ec) {
-                    rxlen = -1;
-                } else {
-                    rxlen = bytes_recvd;
+            [this, &block](std::error_code ec, std::size_t bytes_recvd) {
+                if (!ec) {
+                    struct tftphdr *dp = (struct tftphdr *)this->rxbuf_;
+                    if ((bytes_recvd >= TFTP_HEADER) && /* if read some data */
+                        (dp->th_opcode == DATA) && /* and got a data block */
+                        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
+                        (block ==
+                         dp->th_block)) { /* then my last ack was lost */
+                        /* resend final ack */
+                        (void)socket_.send_to(
+                            asio::buffer(this->ackbuf_, TFTP_HEADER),
+                            this->sender_endpoint_);
+                    }
                 }
             });
-#else
-        rxlen = socket_.receive_from(asio::buffer(rxbuf_, sizeof(rxbuf_)),
-                                     sender_endpoint_);
-#endif
-
-        struct tftphdr *dp = (struct tftphdr *)rxbuf_;
-        if ((rxlen >= TFTP_HEADER) &&  /* if read some data */
-            (dp->th_opcode == DATA) && /* and got a data block */
-            // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
-            (block == dp->th_block)) { /* then my last ack was lost */
-            /* resend final ack */
-            (void)socket_.send_to(asio::buffer(ackbuf_, TFTP_HEADER),
-                                  sender_endpoint_);
-        }
 
         return 0; // OK
     }
@@ -889,6 +886,31 @@ private:
     }
 
 private:
+    void run(std::chrono::steady_clock::duration timeout)
+    {
+        // Restart the io_context, as it may have been left in the "stopped"
+        // state by a previous operation.
+        io_context_.restart();
+
+        // Block until the asynchronous operation has completed, or timed out.
+        // If the pending asynchronous operation is a composed operation, the
+        // deadline applies to the entire operation, rather than individual
+        // operations on the socket.
+        io_context_.run_for(timeout);
+
+        // If the asynchronous operation completed successfully then the
+        // io_context would have been stopped due to running out of work. If it
+        // was not stopped, then the io_context::run_for call must have timed
+        // out.
+        if (!io_context_.stopped()) {
+            // Cancel the outstanding asynchronous operation.
+            socket_.cancel();
+
+            // Run the io_context again until the operation completes.
+            io_context_.run();
+        }
+    }
+
     udp::socket socket_;
     asio::steady_timer timer_;
     udp::endpoint sender_endpoint_;
@@ -900,6 +922,7 @@ private:
     int timeout_;
     char ackbuf_[PKTSIZE] = {};
     char rxbuf_[PKTSIZE] = {};
+    asio::io_context &io_context_;
 };
 
 int main(int argc, char *argv[])
