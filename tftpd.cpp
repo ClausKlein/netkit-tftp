@@ -68,12 +68,20 @@ char copyright[] =
 
 #include <type_traits>
 
-#include <asio/io_context.hpp>
-#include <asio/ip/udp.hpp>
-#include <asio/read.hpp>
-#include <asio/steady_timer.hpp>
-#include <asio/system_error.hpp>
-#include <asio/write.hpp>
+#define USE_SYNC_RECEIVE
+#ifndef USE_SYNC_RECEIVE
+#    include <asio/io_context.hpp>
+#    include <asio/ip/udp.hpp>
+#    include <asio/read.hpp>
+#    include <asio/steady_timer.hpp>
+#    include <asio/system_error.hpp>
+#    include <asio/write.hpp>
+#else
+#    include <asio/ts/buffer.hpp>
+#    include <asio/ts/internet.hpp>
+#endif
+
+#include <boost/algorithm/string/case_conv.hpp>
 
 #include <chrono>
 #include <cstdlib>
@@ -125,15 +133,16 @@ struct formats
  */
 int tftp(const std::vector<char> &rxbuffer)
 {
-    char *cp;
+    const char *cp;
     bool first = true;
     int ecode;
     struct formats *pf;
-    char *filename, *mode = NULL;
+    const char *filename, *mode = NULL;
 
-    struct tftphdr *tp = (struct tftphdr *)rxbuffer.data();
+    struct tftphdr *tp = (struct tftphdr *)(rxbuffer.data());
     tp->th_opcode = ntohs(tp->th_opcode);
-    filename = cp = tp->th_stuff;
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
+    filename = cp = static_cast<const char *>(tp->th_stuff);
 
     do {
         // TODO: for(const char& c: rxbuffer)
@@ -155,14 +164,12 @@ int tftp(const std::vector<char> &rxbuffer)
         break;
     } while (true);
 
-    for (cp = mode; *cp != 0; cp++) {
-        if (isupper(*cp) != 0) {
-            *cp = tolower(*cp);
-        }
-    }
+    std::string l_mode(mode);
+    boost::to_lower(l_mode);
 
+    // NOLINTNEXTLINE
     for (pf = formats; pf->f_mode != nullptr; pf++) {
-        if (strcmp(pf->f_mode, mode) == 0) {
+        if (l_mode == pf->f_mode) {
             break;
         }
     }
@@ -221,6 +228,7 @@ static int validate_access(const char *filename, int mode)
             filename++;
         }
     } else {
+        // NOLINTNEXTLINE
         for (dirp = dirs; *dirp != 0; dirp++) {
             if (strncmp(filename, *dirp, strlen(*dirp)) == 0) {
                 break;
@@ -623,7 +631,8 @@ public:
     }
 
 private:
-    void start_timeout(size_t seconds) {
+    void start_timeout(size_t seconds)
+    {
         timer_.expires_after(std::chrono::seconds(seconds));
         timer_.async_wait([this](const std::error_code & /*error*/) {
             syslog(LOG_WARNING, "tftpd: timeout!\n");
@@ -664,7 +673,8 @@ private:
     }
 
     /*
-     * Send a nak packet (error message).  Error code passed in is one of the standard TFTP codes, or a UNIX errno offset by 100.
+     * Send a nak packet (error message).  Error code passed in is one of the
+     * standard TFTP codes, or a UNIX errno offset by 100.
      */
     void send_nak(int error)
     {
@@ -676,6 +686,7 @@ private:
 
         tp = (struct tftphdr *)txbuf.data();
         tp->th_opcode = htons((u_short)ERROR);
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
         tp->th_code = htons((u_short)error);
         for (pe = errmsgs; pe->e_code >= 0; pe++) {
             if (pe->e_code == error) {
@@ -684,11 +695,14 @@ private:
         }
         if (pe->e_code < 0) {
             pe->e_msg = strerror(error - 100);
+            // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
             tp->th_code =
                 htons((u_short)EUNDEF); /* set 'eundef(0)' errorcode */
         }
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
         strncpy(tp->th_msg, pe->e_msg, PKTSIZE - 5);
         length = strlen(pe->e_msg);
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
         tp->th_msg[length] = '\0'; // TODO: check this! CK
         length += 5;
         txbuf.resize(length);
@@ -720,6 +734,7 @@ private:
             struct tftphdr *dp = w_init(); // get first data buffer ptr
             do {
                 ap->th_opcode = htons((u_short)ACK);
+                // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
                 ap->th_block = htons((u_short)block);
                 block++;
 
@@ -739,12 +754,24 @@ private:
 
                 for (;;) {
                     start_timeout(timeout_);
-                    // TODO Run an asynchronous read operation with a timeout.
-                    // FIXME asio::async_read(socket_, asio::buffer(dp,
-                    // PKTSIZE), close_after(std::chrono::seconds(rexmtval),
-                    // socket_));
+
+#ifndef USE_SYNC_RECEIVE
+                    // Run an asynchronous read operation with a timeout.
+                    socket_.async_receive_from(
+                        asio::buffer(dp, PKTSIZE), sender_endpoint_,
+                        [this, &rxlen](std::error_code ec,
+                                       std::size_t bytes_recvd) {
+                            if (ec) {
+                                rxlen = -1;
+                            } else {
+                                rxlen = bytes_recvd;
+                            }
+                        });
+#else
                     rxlen = socket_.receive_from(asio::buffer(dp, PKTSIZE),
                                                  sender_endpoint_);
+#endif
+
                     if (rxlen < 0) { /* really? */
                         syslog(LOG_ERR, "tftpd: read data: %s\n",
                                strerror(errno));
@@ -752,17 +779,20 @@ private:
                     }
 
                     dp->th_opcode = ntohs((u_short)dp->th_opcode);
+                    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
                     dp->th_block = ntohs((u_short)dp->th_block);
                     if (dp->th_opcode == ERROR) {
                         return -1;
                     }
                     if (dp->th_opcode == DATA) {
+                        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
                         if (dp->th_block == block) {
                             break; /* normal */
                         }
 
                         synchnet(); // Re-synchronize with the other side
 
+                        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
                         if (dp->th_block == (block - 1)) {
                             // NOLINTNEXTLINE(cppcoreguidelines-avoid-goto)
                             goto send_ack; /* rexmit */
@@ -787,20 +817,35 @@ private:
         }
 
         ap->th_opcode = htons((u_short)ACK); /* send the "final" ack */
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
         ap->th_block = htons((u_short)(block));
         (void)socket_.send_to(asio::buffer(ackbuf_, TFTP_HEADER),
                               sender_endpoint_);
 
         start_timeout(rexmtval);
-        // FIXME asio::async_read(socket_, asio::buffer(dp, PKTSIZE),
-        // close_after(std::chrono::seconds(rexmtval), socket_));
-        size_t rxlen = socket_.receive_from(asio::buffer(rxbuf_, sizeof(rxbuf_)),
-                                            sender_endpoint_);
+        timeout_ = maxtimeout; // NOTE: Normally times out and quits
+        size_t rxlen = 0;
 
-        // NOTE: Normally times out and quits
+#ifndef USE_SYNC_RECEIVE
+        // Run an asynchronous read operation with a timeout.
+        socket_.async_receive_from(
+            asio::buffer(rxbuf_, sizeof(rxbuf_)), sender_endpoint_,
+            [this, &rxlen](std::error_code ec, std::size_t bytes_recvd) {
+                if (ec) {
+                    rxlen = -1;
+                } else {
+                    rxlen = bytes_recvd;
+                }
+            });
+#else
+        rxlen = socket_.receive_from(asio::buffer(rxbuf_, sizeof(rxbuf_)),
+                                     sender_endpoint_);
+#endif
+
         struct tftphdr *dp = (struct tftphdr *)rxbuf_;
         if ((rxlen >= TFTP_HEADER) &&  /* if read some data */
             (dp->th_opcode == DATA) && /* and got a data block */
+            // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
             (block == dp->th_block)) { /* then my last ack was lost */
             /* resend final ack */
             (void)socket_.send_to(asio::buffer(ackbuf_, TFTP_HEADER),
@@ -822,7 +867,7 @@ private:
      */
     void synchnet()
     {
-        int i, j = 0;
+        int j = 0;
         struct sockaddr_storage from;
         socklen_t fromlen;
         int s = socket_.native_handle();
@@ -853,8 +898,8 @@ private:
     };
     std::vector<char> rxdata_;
     int timeout_;
-    char ackbuf_[PKTSIZE];
-    char rxbuf_[PKTSIZE];
+    char ackbuf_[PKTSIZE] = {};
+    char rxbuf_[PKTSIZE] = {};
 };
 
 int main(int argc, char *argv[])

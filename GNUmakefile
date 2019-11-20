@@ -21,7 +21,7 @@ checkAllHeader?='$(CURDIR)/.*'
 
 # NOTE: there are many errors with boost::test, doctest, catch test framework! CK
 # CHECKS:='-cppcoreguidelines-avoid-c-arrays,-modernize-avoid-c-arrays'
-CHECKS?='-*,cppcoreguidelines-*,cppcoreguidelines-pro-*,-cppcoreguidelines-avoid-c-arrays'
+CHECKS?='-*,cppcoreguidelines-*,-cppcoreguidelines-pro-*,-cppcoreguidelines-avoid-c-arrays'
 CHECKS?='-*,portability-*,readability-*'
 CHECKS?='-*,misc-*,boost-*,cert-*,misc-unused-parameters'
 
@@ -54,7 +54,7 @@ test: all
 
 
 check: setup .configure-$(BUILD_TYPE) compile_commands.json
-	run-clang-tidy.py -header-filter=$(checkAllHeader) -checks=$(CHECKS) *.cpp | tee run-clang-tidy.log 2>&1
+	run-clang-tidy.py -header-filter=$(checkAllHeader) -checks=$(CHECKS) tftpd.cpp | tee run-clang-tidy.log 2>&1
 	egrep '\b(warning|error):' run-clang-tidy.log | perl -pe 's/(^.*) (warning|error):/\2/' | sort -u
 
 setup: $(BUILD_DIR) .clang-tidy compile_commands.json
