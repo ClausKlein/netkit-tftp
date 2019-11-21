@@ -74,7 +74,7 @@ $(BUILD_DIR): GNUmakefile
 
 
 format: .clang-format
-	find . -type f \( -name '*.h' -o -name '*.hpp' -o -name '*.c' -o -name '*.cpp' \) -print0 | xargs -0 clang-format -style=file -i
+	find . -type f \( -name '*.hxx' -o -name '*.hpp' -o -name '*.cxx' -o -name '*.cpp' \) -print0 | xargs -0 clang-format -style=file -i
 
 
 lcov: $(BUILD_DIR) .configure-Coverage
