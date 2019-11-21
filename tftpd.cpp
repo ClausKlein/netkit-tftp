@@ -337,7 +337,6 @@ private:
     void start_timeout(size_t seconds)
     {
         syslog(LOG_NOTICE, "%s(%lu)\n", __FUNCTION__, seconds);
-        // timer_.cancel(); // TODO: needed? CK
         timer_.expires_after(std::chrono::seconds(seconds));
         timer_.async_wait([this](const std::error_code &error) {
             if (!error) {
@@ -463,8 +462,8 @@ private:
             asio::buffer(ackbuf_, TFTP_HEADER), sender_endpoint_,
             [this](std::error_code ec, std::size_t /*bytes_sent*/) {
                 if (ec) {
-// FIXME: why is "Operation aborted" for each block after upload? CK
-                    syslog(LOG_ERR, "tftpd: send_ackbuf: %s\n", strerror(errno));
+                    syslog(LOG_ERR, "tftpd: send_ackbuf: %s\n",
+                           strerror(errno));
                 } else {
                     receive_block();
                 }
@@ -481,7 +480,8 @@ private:
             asio::buffer(dp, PKTSIZE), sender_endpoint_,
             [this](std::error_code ec, std::size_t bytes_recvd) {
                 if (ec) {
-                    syslog(LOG_ERR, "tftpd: read data: %s\n", ec.message().c_str());
+                    syslog(LOG_ERR, "tftpd: read data: %s\n",
+                           ec.message().c_str());
                 } else {
                     int err = check_block(bytes_recvd);
                     if (err) {
@@ -539,7 +539,6 @@ private:
 
         if (size == SEGSIZE) {
             send_ack();
-            receive_block();
             return 0;
         }
 
