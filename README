@@ -11,7 +11,7 @@ Contents:
 	tftp		Trivial File Transfer Protocol client
 	tftpd		Trivial File Transfer Protocol daemon
 
-	
+
 Requires:
 	Working compiler, libc, and kernel.
 
@@ -60,14 +60,14 @@ Bugs:
 	If something doesn't compile for you, fix it and send diffs.
 	If you can't, send the compiler's error output.
 
-	If it compiles but doesn't work, send as complete a bug report as 
-	you can. Patches and fixes are welcome, as long as you describe 
+	If it compiles but doesn't work, send as complete a bug report as
+	you can. Patches and fixes are welcome, as long as you describe
 	adequately what they're supposed to fix. Please, one patch per
 	distinct fix. Please do NOT send the whole archive back or
 	reindent the source.
 
 	Be sure to send all correspondence in e-mail to the netkit address.
-	Postings to netnews or mailing lists will not be seen due to the 
+	Postings to netnews or mailing lists will not be seen due to the
 	enormous volume. Also, anything that doesn't get filed in the bug
 	database is quite likely to end up forgotten.
 

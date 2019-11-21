@@ -43,39 +43,39 @@ char copyright[] =
 /*
  * Trivial file transfer protocol server.
  *
+ * TFTP's design was influenced from the earlier protocol EFTP,
+ * which was part of the PUP protocol suite.
+ * TFTP was first defined in 1980 by IEN 133.
+ * In June 1981 The TFTP Protocol (Revision 2) was published as RFC 783 and
+ * later updated!
+ *
+ * In July 1992 by RFC 1350 which fixed among other things the Sorcerer's Apprentice Syndrome.
+ *
  * This version includes many modifications by Jim Guyton <guyton@rand-unix>
  */
 #include "tftp/tftpsubs.h"
 
 #include <arpa/tftp.h>
-#include <ctype.h>
-#include <errno.h>
-#include <fcntl.h>
-#include <grp.h>
-#include <netinet/in.h>
-#include <pwd.h>
-#include <sys/stat.h>
-#include <sys/types.h>
 #include <syslog.h>
 #include <unistd.h>
 
 //
 // async_tftpd_server.cpp
 // ~~~~~~~~~~~~~~~~~~~~~~~~~
-// to much! #include "asio.hpp"
 //
-// not yet! #include <asio/use_future.hpp>
 
 #include <type_traits>
 
-#define USE_SYNC_RECEIVE
+#undef USE_SYNC_RECEIVE
 #ifndef USE_SYNC_RECEIVE
+// NO! to much! #include "asio.hpp"
 #    include <asio/io_context.hpp>
 #    include <asio/ip/udp.hpp>
 #    include <asio/read.hpp>
 #    include <asio/steady_timer.hpp>
 #    include <asio/system_error.hpp>
 #    include <asio/write.hpp>
+// not yet! #include <asio/use_future.hpp>
 #else
 #    include <asio/ts/buffer.hpp>
 #    include <asio/ts/internet.hpp>
@@ -93,28 +93,20 @@ char copyright[] =
 #include <utility>
 #include <vector>
 
-#define TIMEOUT 5
 
-struct formats;
-// XXX static int sendfile(struct formats *pf);
-// XXX static int recvfile(struct formats *pf);
 static int validate_access(const char *filename, int mode);
 
-// XXX static int peer;
-static const int rexmtval = TIMEOUT;
-static const int maxtimeout = 5 * TIMEOUT;
-
-// XXX static char buf[PKTSIZE];
-// XXX static char ackbuf[PKTSIZE];
-// XXX static struct sockaddr_storage from;
-// XXX static socklen_t fromlen;
+constexpr int TIMEOUT{5};
+constexpr int rexmtval {TIMEOUT};
+constexpr int maxtimeout {5 * TIMEOUT};
 
 static const char *default_dirs[] = {"/tmp/tftpboot", 0};
 static const char *const *dirs = default_dirs;
 
-static const bool suppress_naks = false;
-static const bool secure_tftp = false;
-static FILE *file;
+constexpr bool suppress_naks {false};
+constexpr bool secure_tftp {false};
+
+static FILE *file;  // TODO: prevent static variables! CK
 
 struct formats
 {
@@ -311,181 +303,6 @@ static int validate_access(const char *filename, int mode)
     return 0; // OK
 }
 
-#if 0
-static int timeout;
-static sigjmp_buf timeoutbuf;
-static void timer(int signum)
-{
-    (void)signum;
-
-    timeout += rexmtval;
-    if (timeout >= maxtimeout) {
-        exit(EXIT_FAILURE);
-    }
-    siglongjmp(timeoutbuf, 1);
-}
-
-/*
- * Send the requested file.
- */
-static int sendfile(struct formats *pf)
-{
-    struct tftphdr *dp;
-    struct tftphdr *ap; /* ack packet */
-    volatile u_int16_t block = 1;
-    int size, n;
-
-    const std::shared_ptr<FILE> guard(file, std::fclose);
-    mysignal(SIGALRM, timer); // FIXME
-    dp = r_init();
-    ap = (struct tftphdr *)ackbuf;
-    do {
-        size = readit(file, &dp, pf->f_convert);
-        if (size < 0) {
-            return (errno + 100);
-        }
-        dp->th_opcode = htons((u_short)DATA);
-        dp->th_block = htons((u_short)block);
-        timeout = 0;
-        (void)sigsetjmp(timeoutbuf, 1); // FIXME
-
-    send_data:
-        if (sendto(peer, dp, size + 4, 0, (struct sockaddr *)&from, fromlen) !=
-            size + 4) {
-            syslog(LOG_ERR, "tftpd: data write: %m\n");
-            break;
-        }
-
-        read_ahead(file, pf->f_convert);
-        for (;;) {
-            alarm(rexmtval); /* read the ack */ // FIXME
-            n = recv(peer, ackbuf, sizeof(ackbuf), 0);
-            alarm(0);
-            if (n < 0) {
-                syslog(LOG_ERR, "tftpd: read ack: %m\n");
-                return 0;   // OK
-            }
-            ap->th_opcode = ntohs((u_short)ap->th_opcode);
-            ap->th_block = ntohs((u_short)ap->th_block);
-
-            if (ap->th_opcode == ERROR) {
-                return 0;   // OK
-            }
-
-            if (ap->th_opcode == ACK) {
-                if (ap->th_block == block) {
-                    break;
-                }
-                /* Re-synchronize with the other side */
-                (void)synchnet(peer, false);
-                if (ap->th_block == (block - 1)) {
-                    // NOLINTNEXTLINE(cppcoreguidelines-avoid-goto)
-                    goto send_data;
-                }
-            }
-        }
-        block++;
-    } while (size == SEGSIZE);
-
-    return 0;   // OK
-}
-
-static void justquit(int signum)
-{
-    (void)signum;
-    exit(EXIT_SUCCESS);
-}
-
-/*
- * Receive a file.
- */
-static int recvfile(struct formats *pf)
-{
-    struct tftphdr *dp;
-    struct tftphdr *ap; /* ack buffer */
-    volatile u_int16_t block = 0;
-    int n;
-
-    {
-        int size;
-        const std::shared_ptr<FILE> guard(file, std::fclose);
-        mysignal(SIGALRM, timer); // FIXME
-        dp = w_init();
-        ap = (struct tftphdr *)ackbuf;
-        do {
-            timeout = 0;
-            ap->th_opcode = htons((u_short)ACK);
-            ap->th_block = htons((u_short)block);
-            block++;
-            (void)sigsetjmp(timeoutbuf, 1); // FIXME
-        send_ack:
-            if (sendto(peer, ackbuf, 4, 0, (struct sockaddr *)&from, fromlen) !=
-                4) {
-                syslog(LOG_ERR, "tftpd: write ack: %m\n");
-                break;
-            }
-
-            write_behind(file, pf->f_convert);
-            for (;;) {
-                alarm(rexmtval); // FIXME
-                n = recv(peer, dp, PKTSIZE, 0);
-                alarm(0);
-                if (n < 0) { /* really? */
-                    syslog(LOG_ERR, "tftpd: read data: %m\n");
-                    return 0;   // OK
-                }
-                dp->th_opcode = ntohs((u_short)dp->th_opcode);
-                dp->th_block = ntohs((u_short)dp->th_block);
-                if (dp->th_opcode == ERROR) {
-                    return 0;   // OK
-                }
-                if (dp->th_opcode == DATA) {
-                    if (dp->th_block == block) {
-                        break; /* normal */
-                    }
-                    /* Re-synchronize with the other side */
-                    (void)synchnet(peer, false);
-                    if (dp->th_block == (block - 1)) {
-                        // NOLINTNEXTLINE(cppcoreguidelines-avoid-goto)
-                        goto send_ack; /* rexmit */
-                    }
-                }
-            }
-
-            /*  size = write(file, dp->th_data, n - 4); */
-            size = writeit(file, &dp, n - 4, pf->f_convert);
-            if (size != (n - 4)) { /* ahem */
-                if (size < 0) {
-                    return (errno + 100);
-                } else {
-                    return (ENOSPACE);
-                }
-            }
-        } while (size == SEGSIZE);
-
-        write_behind(file, pf->f_convert);
-    }
-
-    ap->th_opcode = htons((u_short)ACK); /* send the "final" ack */
-    ap->th_block = htons((u_short)(block));
-    (void)sendto(peer, ackbuf, 4, 0, (struct sockaddr *)&from, fromlen);
-
-    mysignal(SIGALRM, justquit); /* FIXME just quit on timeout */
-    alarm(rexmtval);             // FIXME
-    n = recv(peer, buf, sizeof(buf),
-             0); /* normally times out and quits */
-    alarm(0);
-    if (n >= 4 &&                /* if read some data */
-        dp->th_opcode == DATA && /* and got a data block */
-        block == dp->th_block) { /* then my last ack was lost */
-        (void)sendto(peer, ackbuf, 4, 0, (struct sockaddr *)&from,
-                     fromlen); /* resend final ack */
-    }
-
-    return 0;   // OK
-}
-#endif
-
 struct errmsg
 {
     int e_code;
@@ -500,122 +317,8 @@ struct errmsg
                {ENOUSER, "No such user"},
                {-1, 0}};
 
-using asio::ip::udp;
-
 //----------------------------------------------------------------------
-#if 0
-
-using asio::ip::tcp;
-
-// A custom completion token that makes asynchronous operations behave as
-// though they are blocking calls with a timeout.
-struct close_after
-{
-  close_after(std::chrono::steady_clock::duration t, tcp::socket& s)
-    : timeout_(t), socket_(s)
-  {
-  }
-
-  // The maximum time to wait for an asynchronous operation to complete.
-  std::chrono::steady_clock::duration timeout_;
-
-  // The socket to be closed if the operation does not complete in time.
-  tcp::socket& socket_;
-};
-
-namespace asio {
-
-// The async_result template is specialised to allow the close_after token to
-// be used with asynchronous operations that have a completion signature of
-// void(error_code, T). Generalising this for all completion signature forms is
-// left as an exercise for the reader.
-template <typename T>
-class async_result<close_after, void(std::error_code, T)>
-{
-public:
-  // An asynchronous operation's initiating function automatically creates an
-  // completion_handler_type object from the token. This function object is
-  // then called on completion of the asynchronous operation.
-  class completion_handler_type
-  {
-  public:
-    completion_handler_type(const close_after& token)
-      : token_(token)
-    {
-    }
-
-    void operator()(const std::error_code& error, T t)
-    {
-      *error_ = error;
-      *t_ = t;
-    }
-
-  private:
-    friend class async_result;
-    close_after token_;
-    std::error_code* error_;
-    T* t_;
-  };
-
-  // The async_result constructor associates the completion handler object with
-  // the result of the initiating function.
-  explicit async_result(completion_handler_type& h)
-    : timeout_(h.token_.timeout_),
-      socket_(h.token_.socket_)
-  {
-    h.error_ = &error_;
-    h.t_ = &t_;
-  }
-
-  // The return_type typedef determines the result type of the asynchronous
-  // operation's initiating function.
-  typedef T return_type;
-
-  // The get() function is used to obtain the result of the asynchronous
-  // operation's initiating function. For the close_after completion token, we
-  // use this function to run the io_context until the operation is complete.
-  // see async_completion<CompletionToken, Signature> completion(token).result.get()
-  return_type get()
-  {
-    asio::io_context& io_context = socket_.get_executor().context();
-
-    // Restart the io_context, as it may have been left in the "stopped" state
-    // by a previous operation.
-    io_context.restart();
-
-    // Block until the asynchronous operation has completed, or timed out. If
-    // the pending asynchronous operation is a composed operation, the deadline
-    // applies to the entire operation, rather than individual operations on
-    // the socket.
-    io_context.run_for(timeout_);
-
-    // If the asynchronous operation completed successfully then the io_context
-    // would have been stopped due to running out of work. If it was not
-    // stopped, then the io_context::run_for call must have timed out and the
-    // operation is still incomplete.
-    if (!io_context.stopped())
-    {
-      // Close the socket to cancel the outstanding asynchronous operation.
-      socket_.close();
-
-      // Run the io_context again until the operation completes.
-      io_context.run();
-    }
-
-    // If the operation failed, throw an exception. Otherwise return the result.
-    return error_ ? throw std::system_error(error_) : t_;
-  }
-
-private:
-  std::chrono::steady_clock::duration timeout_;
-  tcp::socket& socket_;
-  std::error_code error_;
-  T t_;
-};
-
-} // namespace asio
-
-#endif
+using asio::ip::udp;
 //----------------------------------------------------------------------
 
 class server
