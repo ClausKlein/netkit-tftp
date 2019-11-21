@@ -114,11 +114,11 @@ struct formats
     // int (*f_validate)(const char *, int);
     // int (*f_send)(struct formats *);
     // int (*f_recv)(struct formats *);
-    int f_convert;
+    bool f_convert;
 } formats[] =
-    { // XXX {"netascii", /* validate_access, sendfile, recvfile, */ 1},
-        {"octet", /* validate_access, sendfile, recvfile, */ 0},
-        {0, 0}};
+    { // XXX {"netascii", /* validate_access, sendfile, recvfile, */ true},
+        {"octet", /* validate_access, sendfile, recvfile, */ false},
+        {0, false}};
 
 /*
  * Handle initial connection protocol.
@@ -420,7 +420,7 @@ private:
     {
         socket_.async_send_to(
             asio::buffer(txdata), sender_endpoint_,
-            [this](std::error_code ec, std::size_t /*bytes_sent*/) {
+            [](std::error_code ec, std::size_t /*bytes_sent*/) {
                 if (ec) {
                     syslog(LOG_ERR, "do_send: %s\n", strerror(errno));
                 }
@@ -465,7 +465,7 @@ private:
                     timer_.cancel();
                     socket_.async_receive_from(
                         asio::buffer(dp, PKTSIZE), sender_endpoint_,
-                        [this, &rxlen](std::error_code ec,
+                        [&rxlen](std::error_code ec,
                                        std::size_t bytes_recvd) {
                             if (ec) {
                                 rxlen = -1;
@@ -515,9 +515,9 @@ private:
                 if (size != length) {       /* ahem */
                     if (size < 0) {
                         return (errno + 100);
-                    } else {
-                        return (ENOSPACE);
                     }
+
+                    return (ENOSPACE);
                 }
             } while (size == SEGSIZE);
 
@@ -647,3 +647,4 @@ int main(int argc, char *argv[])
 
     exit(EXIT_SUCCESS);
 }
+
