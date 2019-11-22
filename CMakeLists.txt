@@ -39,8 +39,8 @@ if(CMAKE_BUILD_TYPE STREQUAL "Coverage")
     include(CodeCoverage)
 
     set(COVERAGE_EXCLUDES
-        '${FETCHCONTENT_BASE_DIR}/*' '/usr/*'
-        '/Applications/Xcode.app/*' '/opt/*'
+        '/usr/*' '/opt/*'
+        '/Applications/Xcode.app/*'
     )
     setup_target_for_coverage(
         NAME lcov   # custom target.

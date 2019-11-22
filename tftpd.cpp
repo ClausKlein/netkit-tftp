@@ -12,8 +12,8 @@
  *    documentation and/or other materials provided with the distribution.
  * 3. All advertising materials mentioning features or use of this software
  *    must display the following acknowledgement:
- *	This product includes software developed by the University of
- *	California, Berkeley and its contributors.
+ *    This product includes software developed by the University of
+ *    California, Berkeley and its contributors.
  * 4. Neither the name of the University nor the names of its contributors
  *    may be used to endorse or promote products derived from this software
  *    without specific prior written permission.
@@ -36,7 +36,7 @@ char copyright[] =
     "All rights reserved.\n";
 
 /*
- * From: @(#)tftpd.c	5.13 (Berkeley) 2/26/91
+ * From: @(#)tftpd.c    5.13 (Berkeley) 2/26/91
  */
 // char rcsid[] = "$Id: tftpd.c,v 1.20 2000/07/29 18:37:21 dholland Exp $";
 
@@ -126,17 +126,21 @@ struct formats
  */
 int tftp(const std::vector<char> &rxbuffer)
 {
-    const char *cp;
-    bool first = true;
-    int ecode;
-    struct formats *pf;
-    const char *filename, *mode = NULL;
+    syslog(LOG_NOTICE, "%s(%lu)\n", __FUNCTION__, rxbuffer.size());
 
     struct tftphdr *tp = (struct tftphdr *)(rxbuffer.data());
     tp->th_opcode = ntohs(tp->th_opcode);
+    if ((tp->th_opcode != RRQ) && (tp->th_opcode != WRQ)) {
+        syslog(LOG_ERR, "tftpd: invalid state!\n");
+        return (EBADID);
+    }
+
+    const char *cp;
+    const char *filename, *mode = NULL;
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
     filename = cp = static_cast<const char *>(tp->th_stuff);
 
+    bool first = true;
     do {
         // TODO: for(const char& c: rxbuffer)
         while (cp < rxbuffer.data() + rxbuffer.size()) {
@@ -160,6 +164,7 @@ int tftp(const std::vector<char> &rxbuffer)
     std::string l_mode(mode);
     boost::to_lower(l_mode);
 
+    struct formats *pf;
     // NOLINTNEXTLINE
     for (pf = formats; pf->f_mode != nullptr; pf++) {
         if (l_mode == pf->f_mode) {
@@ -171,7 +176,7 @@ int tftp(const std::vector<char> &rxbuffer)
         return (EBADOP);
     }
 
-    ecode = validate_access(filename, tp->th_opcode);
+    int ecode = validate_access(filename, tp->th_opcode);
     if (ecode != 0) {
         /*
          * Avoid storms of naks to a RRQ broadcast for a relative
@@ -208,11 +213,11 @@ static int validate_access(const char *filename, int mode)
     const char *cp;
     const char *const *dirp;
 
-    syslog(LOG_NOTICE, "tftpd: trying to get file: %s\n", filename);
+    syslog(LOG_NOTICE, "tftpd: Validate access to file: %s\n", filename);
 
     // TODO: prevent strncmp usage! CK
     if (*filename != '/' || secure_tftp) {
-        syslog(LOG_NOTICE, "tftpd: serving file from %s\n", dirs[0]);
+        syslog(LOG_NOTICE, "tftpd: Check file access at %s\n", dirs[0]);
         /*chdir(dirs[0]);*/
         if (chdir(dirs[0]) < 0) {
             syslog(LOG_WARNING, "tftpd: chdir: %s\n", strerror(errno));
@@ -232,7 +237,7 @@ static int validate_access(const char *filename, int mode)
             syslog(LOG_WARNING, "tftpd: invalid root dir!\n");
             return (EACCESS);
         }
-        syslog(LOG_NOTICE, "tftpd: serving file %s\n", filename);
+        syslog(LOG_NOTICE, "tftpd: Check access to file %s\n", filename);
     }
 
     /*
@@ -255,38 +260,38 @@ static int validate_access(const char *filename, int mode)
     if (stat(filename, &stbuf) < 0) {
         // stat error, no such file or no read access
         if (mode == RRQ || secure_tftp) {
-            syslog(LOG_WARNING, "tftpd: file not found %s\n", filename);
+            syslog(LOG_WARNING, "tftpd: File not found %s\n", filename);
             return (errno == ENOENT ? ENOTFOUND : EACCESS);
         }
     }
 
 #if 0
-	/*
-	 * The idea is that symlinks are dangerous. However, a symlink
-	 * in the tftp area has to have been put there by root, and it's
-	 * not part of the philosophy of Unix to keep root from shooting
-	 * itself in the foot if it tries to. So basically we assume if
-	 * there are symlinks they're there on purpose and not pointing
-	 * to /etc/passwd or /tmp or other dangerous places.
-	 *
-	 * Note if this gets turned on the stat above needs to be made
-	 * an lstat, or the check is useless.
-	 */
-	/* symlinks prohibited */
-	if (S_ISLNK(stbuf.st_mode)) {
-		return (EACCESS);
-	}
+    /*
+     * The idea is that symlinks are dangerous. However, a symlink
+     * in the tftp area has to have been put there by root, and it's
+     * not part of the philosophy of Unix to keep root from shooting
+     * itself in the foot if it tries to. So basically we assume if
+     * there are symlinks they're there on purpose and not pointing
+     * to /etc/passwd or /tmp or other dangerous places.
+     *
+     * Note if this gets turned on the stat above needs to be made
+     * an lstat, or the check is useless.
+     */
+    /* symlinks prohibited */
+    if (S_ISLNK(stbuf.st_mode)) {
+        return (EACCESS);
+    }
 #endif
 
     if (mode == RRQ) {
         if ((stbuf.st_mode & S_IROTH) == 0) {
-            syslog(LOG_WARNING, "tftpd: file has not S_IROTH set\n");
+            syslog(LOG_WARNING, "tftpd: File has not S_IROTH set\n");
             return (EACCESS);
         }
 
     } else if (secure_tftp) {
         if ((stbuf.st_mode & S_IWOTH) == 0) {
-            syslog(LOG_WARNING, "tftpd: file has not S_IWOTH set\n");
+            syslog(LOG_WARNING, "tftpd: File has not S_IWOTH set\n");
             return (EACCESS);
         }
     }
@@ -328,8 +333,7 @@ class server
 public:
     server(asio::io_context &io_context, short port)
         : socket_(io_context, udp::endpoint(udp::v4(), port)),
-          timer_(io_context, std::chrono::seconds(maxtimeout)),
-          timeout_(rexmtval) //XXX, io_context_(io_context)
+          timer_(io_context), timeout_(rexmtval)
     {
         start_timeout(maxtimeout); // max idle wait ...
         do_receive();
@@ -339,6 +343,7 @@ protected:
     void start_timeout(size_t seconds)
     {
         syslog(LOG_NOTICE, "%s(%lu)\n", __FUNCTION__, seconds);
+        timer_.cancel();
         timer_.expires_after(std::chrono::seconds(seconds));
         timer_.async_wait([this](const std::error_code &error) {
             if (!error) {
@@ -369,8 +374,13 @@ protected:
                     int error = tftp(rxdata_);
                     if (error != 0) {
                         send_nak(error);
-                        start_timeout(rexmtval);
-                        do_receive();
+#if 0
+                        if (socket_.is_open()) {
+                            timeout_ = rexmtval;
+                            start_timeout(rexmtval);
+                            do_receive();
+                        }
+#endif
                     } else {
                         this->guard = start_recvfile();
                     }
@@ -426,10 +436,11 @@ protected:
         syslog(LOG_NOTICE, "%s\n", __FUNCTION__);
         socket_.async_send_to(
             asio::buffer(txdata), sender_endpoint_,
-            [](std::error_code ec, std::size_t /*bytes_sent*/) {
+            [this](std::error_code ec, std::size_t /*bytes_sent*/) {
                 if (ec) {
                     syslog(LOG_ERR, "do_send: %s\n", ec.message().c_str());
                 }
+                timer_.cancel();
             });
     }
 
@@ -507,6 +518,7 @@ protected:
             // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
             dp->th_block = ntohs((u_short)dp->th_block);
             if (dp->th_opcode == ERROR) {
+                syslog(LOG_ERR, "tftpd: NAK received!\n");
                 return ERRNO_OFFSET;
             }
 
@@ -525,6 +537,9 @@ protected:
                     send_ackbuf(); /* rexmit => send last ack buf again */
                     return 0;      // OK
                 }
+            } else {
+                syslog(LOG_ERR, "tftpd: invalid state!\n");
+                return EBADID;
             }
         } while (false);
 
@@ -586,6 +601,7 @@ protected:
                             this->sender_endpoint_);
                     }
                 }
+                timer_.cancel();
             });
     }
 
@@ -635,7 +651,6 @@ private:
     int timeout_;
     char ackbuf_[PKTSIZE] = {};
     char rxbuf_[PKTSIZE] = {};
-    //XXX asio::io_context &io_context_;
 
     struct tftphdr *dp = {nullptr};
     std::shared_ptr<FILE> guard;
