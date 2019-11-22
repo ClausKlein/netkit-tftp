@@ -41,21 +41,26 @@ char tftp_rcsid[] = "$Id: tftp.c,v 1.10 2000/07/22 19:06:29 dholland Exp $";
 /*
  * TFTP User Program -- Protocol Machines
  */
-#include <netinet/in.h>
-#include <sys/socket.h>
-#include <sys/time.h>
-#include <sys/types.h>
-/* #include <netinet/ip.h> <--- unused? */
 #include "../version.h"
 #include "tftpsubs.h"
 
 #include <arpa/tftp.h>
 #include <errno.h>
+#include <netinet/in.h>
 #include <setjmp.h>
 #include <signal.h>
 #include <stdio.h>
 #include <string.h>
+#include <sys/socket.h>
+#include <sys/time.h>
+#include <sys/types.h>
 #include <unistd.h>
+
+#ifndef NDEBUG
+const int debug = 1;
+#else
+const int debug = 0;
+#endif
 
 extern struct sockaddr_storage s_inn; /* filled in by main */
 extern socklen_t s_inn_len;
@@ -135,14 +140,19 @@ void sendfile(int fd, char *name, char *mode)
         timeout = 0;
         (void)sigsetjmp(timeoutbuf, 1);
     send_data:
-        if (trace)
-            tpacket("sent", dp, size + 4);
+        // NOTE: test retransmit
+        if (!(debug && (!timeout == 0) && (block == 1))) {
+            if (trace) {
+                tpacket("sent", dp, size + 4);
+            }
 
-        n = sendto(f, dp, size + 4, 0, (struct sockaddr *)&from, fromlen);
-        if (n != size + 4) {
-            perror("tftp: sendto");
-            goto abort;
+            n = sendto(f, dp, size + 4, 0, (struct sockaddr *)&from, fromlen);
+            if (n != size + 4) {
+                perror("tftp: sendto");
+                goto abort;
+            }
         }
+
         read_ahead(file, convert);
         for (;;) {
             alarm(rexmtval);

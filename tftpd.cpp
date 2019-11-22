@@ -96,6 +96,7 @@ char copyright[] =
 
 static int validate_access(const char *filename, int mode);
 
+constexpr int ERRNO_OFFSET{100};
 constexpr int TIMEOUT{5};
 constexpr int rexmtval{TIMEOUT};
 constexpr int maxtimeout{5 * TIMEOUT};
@@ -209,6 +210,7 @@ static int validate_access(const char *filename, int mode)
 
     syslog(LOG_NOTICE, "tftpd: trying to get file: %s\n", filename);
 
+    // TODO: prevent strncmp usage! CK
     if (*filename != '/' || secure_tftp) {
         syslog(LOG_NOTICE, "tftpd: serving file from %s\n", dirs[0]);
         /*chdir(dirs[0]);*/
@@ -292,11 +294,11 @@ static int validate_access(const char *filename, int mode)
     fd = open(filename,
               (mode == RRQ ? O_RDONLY : (O_WRONLY | O_TRUNC | O_CREAT)), 0666);
     if (fd < 0) {
-        return (errno + 100);
+        return (errno + ERRNO_OFFSET);
     }
     file = fdopen(fd, (mode == RRQ) ? "r" : "w");
     if (file == NULL) {
-        return errno + 100;
+        return errno + ERRNO_OFFSET;
     }
 
     syslog(LOG_NOTICE, "tftpd: successfully open file\n");
@@ -327,13 +329,13 @@ public:
     server(asio::io_context &io_context, short port)
         : socket_(io_context, udp::endpoint(udp::v4(), port)),
           timer_(io_context, std::chrono::seconds(maxtimeout)),
-          timeout_(rexmtval), io_context_(io_context)
+          timeout_(rexmtval) //XXX, io_context_(io_context)
     {
         start_timeout(maxtimeout); // max idle wait ...
         do_receive();
     }
 
-private:
+protected:
     void start_timeout(size_t seconds)
     {
         syslog(LOG_NOTICE, "%s(%lu)\n", __FUNCTION__, seconds);
@@ -367,6 +369,8 @@ private:
                     int error = tftp(rxdata_);
                     if (error != 0) {
                         send_nak(error);
+                        start_timeout(rexmtval);
+                        do_receive();
                     } else {
                         this->guard = start_recvfile();
                     }
@@ -378,7 +382,7 @@ private:
 
     /*
      * Send a nak packet (error message).  Error code passed in is one of the
-     * standard TFTP codes, or a UNIX errno offset by 100.
+     * standard TFTP codes, or a UNIX errno offset by ERRNO_OFFSET(100).
      */
     void send_nak(int error)
     {
@@ -397,18 +401,21 @@ private:
                 break;
             }
         }
+
+        // TODO: prevent strncpy usage, use std::string! CK
         if (pe->e_code < 0) {
-            pe->e_msg = strerror(error - 100);
+            pe->e_msg = strerror(error - ERRNO_OFFSET);
             // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
             tp->th_code =
                 htons((u_short)EUNDEF); /* set 'eundef(0)' errorcode */
         }
+        size_t extra = TFTP_HEADER + 1;
         // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
-        strncpy(tp->th_msg, pe->e_msg, PKTSIZE - 5);
+        strncpy(tp->th_msg, pe->e_msg, PKTSIZE - extra);
         length = strlen(pe->e_msg);
         // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
-        tp->th_msg[length] = '\0'; // TODO: check this! CK
-        length += 5;
+        tp->th_msg[length] = '\0'; // TODO: check if needed! CK
+        length += extra;
         txbuf.resize(length);
 
         do_send(txbuf);
@@ -421,7 +428,7 @@ private:
             asio::buffer(txdata), sender_endpoint_,
             [](std::error_code ec, std::size_t /*bytes_sent*/) {
                 if (ec) {
-                    syslog(LOG_ERR, "do_send: %s\n", strerror(errno));
+                    syslog(LOG_ERR, "do_send: %s\n", ec.message().c_str());
                 }
             });
     }
@@ -455,7 +462,7 @@ private:
         int txlen = write_behind(file, false);
         if (txlen < 0) {
             syslog(LOG_ERR, "tftpd: write file: %s\n", strerror(errno));
-            exit(EXIT_FAILURE);
+            exit(EXIT_FAILURE); // TODO: throw ...
         }
 
         socket_.async_send_to(
@@ -463,7 +470,7 @@ private:
             [this](std::error_code ec, std::size_t /*bytes_sent*/) {
                 if (ec) {
                     syslog(LOG_ERR, "tftpd: send_ackbuf: %s\n",
-                           strerror(errno));
+                           ec.message().c_str());
                 } else {
                     receive_block();
                 }
@@ -474,7 +481,6 @@ private:
     {
         syslog(LOG_NOTICE, "%s\n", __FUNCTION__);
         // Run an asynchronous read operation with a timeout.
-        timer_.cancel();
         start_timeout(timeout_);
         socket_.async_receive_from(
             asio::buffer(dp, PKTSIZE), sender_endpoint_,
@@ -487,7 +493,7 @@ private:
                     if (err) {
                         syslog(LOG_ERR, "tftpd: check data: %s\n",
                                strerror(err));
-                        exit(EXIT_FAILURE);
+                        exit(EXIT_FAILURE); // TODO: throw ...
                     }
                 }
             });
@@ -501,7 +507,7 @@ private:
             // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
             dp->th_block = ntohs((u_short)dp->th_block);
             if (dp->th_opcode == ERROR) {
-                return -1;
+                return ERRNO_OFFSET;
             }
 
             if (dp->th_opcode == DATA) {
@@ -516,9 +522,8 @@ private:
 
                 // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
                 if (dp->th_block == (block - 1)) {
-                    // NOLINTNEXTLINE(cppcoreguidelines-avoid-goto)
-                    send_ackbuf(); /* rexmit */
-                    return 0;
+                    send_ackbuf(); /* rexmit => send last ack buf again */
+                    return 0;      // OK
                 }
             }
         } while (false);
@@ -529,17 +534,17 @@ private:
         int length = rxlen - TFTP_HEADER;
         int size = writeit(file, &dp, length, false);
         if (size != length) { /* ahem */
-#if 0
+            int error = ENOSPACE;
             if (size < 0) {
-                return (errno + 100);
+                error = (errno + ERRNO_OFFSET);
             }
-#endif
-            return (ENOSPACE);
+            send_nak(error);
+            return (error);
         }
 
         if (size == SEGSIZE) {
             send_ack();
-            return 0;
+            return 0; // OK
         }
 
         // =======================================================
@@ -548,7 +553,7 @@ private:
 
         send_last_ack();
 
-        return 0;
+        return 0; // OK
     }
 
     void send_last_ack()
@@ -630,7 +635,7 @@ private:
     int timeout_;
     char ackbuf_[PKTSIZE] = {};
     char rxbuf_[PKTSIZE] = {};
-    asio::io_context &io_context_;
+    //XXX asio::io_context &io_context_;
 
     struct tftphdr *dp = {nullptr};
     std::shared_ptr<FILE> guard;
