@@ -11,72 +11,82 @@ cd ${PWD}
 rm -rf ${TFTPDIR}
 mkdir ${TFTPDIR}
 chmod 755 ${TFTPDIR}
-touch ${TFTPDIR}/test.data
-chmod 600 ${TFTPDIR}/test.data
-
-
-#TODO test exact blocksize upload
-#TODO mkfile 500 test.txt
+touch ${TFTPDIR}/zero.data
+chmod 600 ${TFTPDIR}/zero.data
 
 
 # NOTE: we start server at bg
 # download must fail, dir not world readable
 bin/tftpd_test 1234 &
-${TFTP} -m binary -c get rules.ninja test.data || date && sleep 1
+${TFTP} -m binary -c get rules.ninja zero.data || date && sleep 1
 
 # upload should fail, file not world writeable
 chmod 777 ${TFTPDIR}
 # bin/tftpd_test 1234 &
-# ${TFTP} -m binary -c put rules.ninja test.data || date && sleep 1
+# ${TFTP} -m binary -c put rules.ninja zero.data || date && sleep 1
 
 # must fail no such file
 bin/tftpd_test 1234 &
-${TFTP} -m binary -c get test.data || date && sleep 1
+${TFTP} -m binary -c get zero.data || date && sleep 1
 
 
 #######################################
-# NOTE: we start client at bg
 # normal binary upload
-${TFTP} -m binary -c put rules.ninja &
-bin/tftpd_test 1234
+bin/tftpd_test 1234 &
+${TFTP} -m binary -c put rules.ninja
 diff ${TFTPDIR}/rules.ninja rules.ninja
+sleep 5
 #######################################
-
+# test exact blocksize upload
+dd if=/dev/random of=test1block.dat bs=512 count=1
+dd if=bin/tftpd_test of=test1k.dat bs=1024 count=1
+dd if=bin/tftpd_test of=test16k.dat bs=1024 count=16
+dd if=bin/tftpd_test of=test32k.dat bs=1024 count=32
+bin/tftpd_test 1234 &
+${TFTP} -m binary -c put test1block.dat
+diff ${TFTPDIR}/test1block.dat test1block.dat
+sleep 5
+#######################################
+bin/tftpd_test 1234 &
+${TFTP} -m binary -c put test16k.dat
+diff ${TFTPDIR}/test16k.dat test16k.dat
+sleep 5
+#######################################
 
 # NOTE: we start server at bg
 # download must fail
 bin/tftpd_test 1234 &
-touch ${TFTPDIR}/test.data
-chmod 666 ${TFTPDIR}/test.data
-${TFTP} -m binary -c get test.data || date && sleep 1
+touch ${TFTPDIR}/test16k.dat
+chmod 666 ${TFTPDIR}/test16k.dat
+${TFTP} -m binary -c get test16k.dat
 
 # ascii upload must fail
-bin/tftpd_test 1234 &
-${TFTP} -m ascii -c put rules.ninja || date && sleep 1
+${TFTP} -m ascii -c put rules.ninja &
+bin/tftpd_test 1234 || date && sleep 1
 
 # relative path upload must fail
-bin/tftpd_test 1234 &
-${TFTP} -m binary -c put rules.ninja ../rules.ninja || date && sleep 1
+${TFTP} -m binary -c put rules.ninja ../rules.ninja &
+bin/tftpd_test 1234 || date && sleep 1
 
 # relative path upload must fail
-bin/tftpd_test 1234 &
-${TFTP} -m binary -c put rules.ninja ./../rules.ninja || date && sleep 1
+${TFTP} -m binary -c put rules.ninja ./../rules.ninja &
+bin/tftpd_test 1234 || date && sleep 1
 
 # invalid absolut path upload must fail
-bin/tftpd_test 1234 &
-${TFTP} -m binary -c put rules.ninja ${PWD}/rules.ninja || date && sleep 1
+${TFTP} -m binary -c put rules.ninja ${PWD}/rules.ninja &
+bin/tftpd_test 1234 || date && sleep 1
 
 # relative path to nonexisting subdir must fail
-bin/tftpd_test 1234 &
-${TFTP} -m binary -c put rules.ninja ./srv/tftp/rules.ninja || date && sleep 1
+${TFTP} -m binary -c put rules.ninja ./srv/tftp/rules.ninja &
+bin/tftpd_test 1234 || date && sleep 1
 
 
 #######################################
 # absolut path upload
-bin/tftpd_test 1234 &
-${TFTP} -m binary -c put rules.ninja ${TFTPDIR}/rules.ninja
-diff ${TFTPDIR}/rules.ninja rules.ninja
-sleep 5
+# bin/tftpd_test 1234 &
+# ${TFTP} -m binary -c put rules.ninja ${TFTPDIR}/rules.ninja
+# diff ${TFTPDIR}/rules.ninja rules.ninja
+# sleep 5
 #######################################
 
 
