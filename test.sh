@@ -12,7 +12,7 @@ rm -rf ${TFTPDIR}
 mkdir ${TFTPDIR}
 chmod 755 ${TFTPDIR}
 touch ${TFTPDIR}/zero.data
-chmod 600 ${TFTPDIR}/zero.data
+chmod 400 ${TFTPDIR}/zero.data
 
 
 # NOTE: we start server at bg
@@ -21,37 +21,36 @@ bin/tftpd_test 1234 &
 ${TFTP} -m binary -c get rules.ninja zero.data || date && sleep 1
 
 # upload should fail, file not world writeable
-chmod 777 ${TFTPDIR}
-# bin/tftpd_test 1234 &
-# ${TFTP} -m binary -c put rules.ninja zero.data || date && sleep 1
+bin/tftpd_test 1234 &
+${TFTP} -m binary -c put rules.ninja zero.data || date && sleep 1
 
 # must fail no such file
+chmod 777 ${TFTPDIR}
 bin/tftpd_test 1234 &
-${TFTP} -m binary -c get zero.data || date && sleep 1
+${TFTP} -m binary -c get zero.dat || date && sleep 1
 
 
-#######################################
-# normal binary upload
+##############################################
+# normal binary upload with dublicate ack's
 bin/tftpd_test 1234 &
-${TFTP} -m binary -c put rules.ninja
+printf "verbose\ntrace\nbinary\nput rules.ninja\n" | bin/tftp 127.0.0.1 1234
 diff ${TFTPDIR}/rules.ninja rules.ninja
 sleep 5
-#######################################
+##############################################
 # test exact blocksize upload
 dd if=/dev/random of=test1block.dat bs=512 count=1
 dd if=bin/tftpd_test of=test1k.dat bs=1024 count=1
 dd if=bin/tftpd_test of=test16k.dat bs=1024 count=16
-dd if=bin/tftpd_test of=test32k.dat bs=1024 count=32
 bin/tftpd_test 1234 &
 ${TFTP} -m binary -c put test1block.dat
 diff ${TFTPDIR}/test1block.dat test1block.dat
 sleep 5
-#######################################
+##############################################
 bin/tftpd_test 1234 &
 ${TFTP} -m binary -c put test16k.dat
 diff ${TFTPDIR}/test16k.dat test16k.dat
 sleep 5
-#######################################
+##############################################
 
 # NOTE: we start server at bg
 # download must fail
@@ -81,13 +80,14 @@ ${TFTP} -m binary -c put rules.ninja ./srv/tftp/rules.ninja &
 bin/tftpd_test 1234 || date && sleep 1
 
 
-#######################################
-# absolut path upload
+##############################################
+### absolut path upload
+# dd if=bin/tftpd_test of=test32k.dat bs=1024 count=32
 # bin/tftpd_test 1234 &
-# ${TFTP} -m binary -c put rules.ninja ${TFTPDIR}/rules.ninja
-# diff ${TFTPDIR}/rules.ninja rules.ninja
+# ${TFTP} -m binary -c put test32k.dat ${TFTPDIR}/test32k.dat
+# diff ${TFTPDIR}/test32k.dat test32k.dat
 # sleep 5
-#######################################
+##############################################
 
 
 # test timeout

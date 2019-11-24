@@ -74,7 +74,7 @@ int rexmtval = TIMEOUT;
 int maxtimeout = 5 * TIMEOUT;
 sigjmp_buf toplevel;
 void sendfile(int fd, char *name, char *modestr);
-void recvfile(int fd, char *name, char *modestr);
+//XXX void recvfile(int fd, char *name, char *modestr);
 
 static int connected =
     AF_UNSPEC; /* If non-zero, contains active address family! */
@@ -95,7 +95,7 @@ void help(int argc, char *argv[]);
 void setverbose(int argc, char *argv[]);
 void settrace(int argc, char *argv[]);
 void status(int argc, char *argv[]);
-void get(int argc, char *argv[]);
+//XXX void get(int argc, char *argv[]);
 void put(int argc, char *argv[]);
 void setpeer(int argc, char *argv[]);
 void modecmd(int argc, char *argv[]);
@@ -133,7 +133,7 @@ char bnhelp[] = "set mode to octet";
 struct cmd cmdtab[] = {{"connect", chelp, setpeer},
                        {"mode", mhelp, modecmd},
                        {"put", shelp, put},
-                       {"get", rhelp, get},
+                       //XXX {"get", rhelp, get},
                        {"quit", qhelp, quit},
                        {"verbose", vhelp, setverbose},
                        {"trace", thelp, settrace},
@@ -439,6 +439,7 @@ void putusage(const char *s)
     printf("       %s file ... target (when already connected)\n", s);
 }
 
+#if 0
 /*
  * Receive file(s).
  */
@@ -539,6 +540,7 @@ void get(int argc, char *argv[])
         recvfile(fd, src, mode);
     }
 }
+#endif
 
 void getusage(const char *s)
 {

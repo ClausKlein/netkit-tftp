@@ -14,8 +14,9 @@
 
 void initsock(int);
 void synchnet(int f, _Bool trace);
-struct tftphdr *r_init(void);
-struct tftphdr *w_init(void);
+struct tftphdr *rw_init(int);
+static inline struct tftphdr *w_init(void) { return rw_init(0); } /* write-behind */
+static inline struct tftphdr *r_init(void) { return rw_init(1); } /* read-ahead */
 int readit(FILE *file, struct tftphdr **dpp, _Bool convert);
 int writeit(FILE *file, struct tftphdr **dpp, int ct, _Bool convert);
 void read_ahead(FILE *file, _Bool convert /* if true, convert to ascii */);

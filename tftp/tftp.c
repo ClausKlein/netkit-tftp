@@ -58,8 +58,6 @@ char tftp_rcsid[] = "$Id: tftp.c,v 1.10 2000/07/22 19:06:29 dholland Exp $";
 
 #ifndef NDEBUG
 const int debug = 1;
-#else
-const int debug = 0;
 #endif
 
 extern struct sockaddr_storage s_inn; /* filled in by main */
@@ -71,7 +69,7 @@ extern int rexmtval;
 extern int maxtimeout;
 extern sigjmp_buf toplevel;
 void sendfile(int fd, char *name, char *modestr);
-void recvfile(int fd, char *name, char *modestr);
+//XXX void recvfile(int fd, char *name, char *modestr);
 
 static struct sockaddr_storage from; /* most recent remote address */
 static socklen_t fromlen;
@@ -140,18 +138,22 @@ void sendfile(int fd, char *name, char *mode)
         timeout = 0;
         (void)sigsetjmp(timeoutbuf, 1);
     send_data:
-        // NOTE: test retransmit
-        if (!(debug && (!timeout == 0) && (block == 1))) {
-            if (trace) {
-                tpacket("sent", dp, size + 4);
-            }
-
-            n = sendto(f, dp, size + 4, 0, (struct sockaddr *)&from, fromlen);
-            if (n != size + 4) {
-                perror("tftp: sendto");
-                goto abort;
-            }
+        if (trace) {
+            tpacket("sent", dp, size + 4);
         }
+
+        n = sendto(f, dp, size + 4, 0, (struct sockaddr *)&from, fromlen);
+        if (n != size + 4) {
+            perror("tftp: sendto");
+            goto abort;
+        }
+
+#ifndef NDEBUG
+        // NOTE: test retransmit 1 time the first block only! CK
+        if ((debug && (timeout == 0) && (block == 1))) {
+            (void)sendto(f, dp, size + 4, 0, (struct sockaddr *)&from, fromlen);
+        }
+#endif
 
         read_ahead(file, convert);
         for (;;) {
@@ -207,6 +209,7 @@ abort:
     initsock(from.ss_family); /* Synchronize address family. */
 }
 
+#if 0
 /*
  * Receive a file.
  */
@@ -311,6 +314,7 @@ abort:
         printstats("Received", amount);
     initsock(from.ss_family); /* Synchronize address family. */
 }
+#endif
 
 int makerequest(int request, char *name, struct tftphdr *tp, char *mode)
 {
@@ -345,10 +349,8 @@ struct errmsg
                {-1, 0}};
 
 /*
- * Send a nak packet (error message).
- * Error code passed in is one of the
- * standard TFTP codes, or a UNIX errno
- * offset by 100.
+ * Send a nak packet (error message).  Error code passed in is one of the
+ * standard TFTP codes, or a UNIX errno offset by 100.
  */
 void nak(int error)
 {

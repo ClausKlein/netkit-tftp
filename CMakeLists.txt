@@ -16,7 +16,7 @@ find_package(asio CONFIG REQUIRED)
 # set(SBIN_DIR "${CMAKE_INSTALL_PREFIX}/sbin")
 # set(MAN_DIR "${CMAKE_INSTALL_PREFIX}/share/man")
 
-# add_subdirectory(tftp)
+add_subdirectory(tftp)
 # add_subdirectory(tftpd)
 
 # add_executable(third_party_lib third_party_lib.cpp)
