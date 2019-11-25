@@ -63,7 +63,7 @@ char main_rcsid[] = "$Id: main.c,v 1.15 2000/07/22 19:06:29 dholland Exp $";
 #include <string.h>
 #include <unistd.h>
 
-#define TIMEOUT 5 /* secs between rexmt's */
+#define TIMEOUT 3 /* secs between rexmt's */
 
 struct sockaddr_storage s_inn;
 socklen_t s_inn_len;

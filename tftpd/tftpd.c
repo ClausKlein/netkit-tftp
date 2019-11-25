@@ -52,7 +52,6 @@ char rcsid[] = "$Id: tftpd.c,v 1.20 2000/07/29 18:37:21 dholland Exp $";
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-/* #include <netinet/ip.h> <--- unused? */
 #include "../version.h"
 #include "tftpsubs.h"
 
@@ -69,7 +68,7 @@ char rcsid[] = "$Id: tftpd.c,v 1.20 2000/07/29 18:37:21 dholland Exp $";
 #include <syslog.h>
 #include <unistd.h>
 
-#define TIMEOUT 5
+#define TIMEOUT 3
 
 struct formats;
 static void tftp(struct tftphdr *tp, int size);

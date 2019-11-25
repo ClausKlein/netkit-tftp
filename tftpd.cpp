@@ -97,7 +97,7 @@ char copyright[] =
 static int validate_access(const char *filename, int mode);
 
 constexpr int ERRNO_OFFSET{100};
-constexpr int TIMEOUT{5};
+constexpr int TIMEOUT{3};
 constexpr int rexmtval{TIMEOUT};
 constexpr int maxtimeout{5 * TIMEOUT};
 
@@ -367,21 +367,18 @@ protected:
         syslog(LOG_NOTICE, "%s\n", __FUNCTION__);
         rxdata_.resize(max_length);
         socket_.async_receive_from(
-            asio::buffer(rxdata_, max_length), sender_endpoint_,
+            asio::buffer(rxdata_, max_length), senderEndpoint_,
             [this](std::error_code ec, std::size_t bytes_recvd) {
                 if (!ec && bytes_recvd > 0) {
                     rxdata_.resize(bytes_recvd);
                     int error = tftp(rxdata_);
                     if (error != 0) {
                         send_nak(error);
-#if 0
-                        if (socket_.is_open()) {
-                            timeout_ = rexmtval;
-                            start_timeout(rexmtval);
-                            do_receive();
-                        }
-#endif
                     } else {
+                        clientEndpoint_ = senderEndpoint_;
+                        socket_.close();
+                        socket_.open(udp::v4());
+                        socket_.bind(udp::endpoint(udp::v4(), 0));
                         this->guard = start_recvfile();
                     }
                 }
@@ -428,18 +425,19 @@ protected:
         length += extra;
         txbuf.resize(length);
 
-        do_send(txbuf);
+        do_send_nak(txbuf);
     }
 
-    void do_send(const std::vector<char> &txdata)
+    void do_send_nak(const std::vector<char> &txdata)
     {
         syslog(LOG_NOTICE, "%s\n", __FUNCTION__);
         socket_.async_send_to(
-            asio::buffer(txdata), sender_endpoint_,
+            asio::buffer(txdata), senderEndpoint_,
             [this](std::error_code ec, std::size_t /*bytes_sent*/) {
                 if (ec) {
-                    syslog(LOG_ERR, "do_send: %s\n", ec.message().c_str());
+                    syslog(LOG_ERR, "do_send_nak: %s\n", ec.message().c_str());
                 }
+                // TODO: now we have no timer running, the run loop terminates ...
                 timer_.cancel();
             });
     }
@@ -477,7 +475,7 @@ protected:
         }
 
         socket_.async_send_to(
-            asio::buffer(ackbuf_, TFTP_HEADER), sender_endpoint_,
+            asio::buffer(ackbuf_, TFTP_HEADER), clientEndpoint_,
             [this](std::error_code ec, std::size_t /*bytes_sent*/) {
                 if (ec) {
                     syslog(LOG_ERR, "tftpd: send_ackbuf: %s\n",
@@ -494,7 +492,7 @@ protected:
         // Run an asynchronous read operation with a timeout.
         start_timeout(timeout_);
         socket_.async_receive_from(
-            asio::buffer(dp, PKTSIZE), sender_endpoint_,
+            asio::buffer(dp, PKTSIZE), senderEndpoint_,
             [this](std::error_code ec, std::size_t bytes_recvd) {
                 if (ec) {
                     syslog(LOG_ERR, "tftpd: read data: %s\n",
@@ -513,6 +511,13 @@ protected:
     int check_block(int rxlen)
     {
         syslog(LOG_NOTICE, "%s(%d)\n", __FUNCTION__, block);
+        if (senderEndpoint_ != clientEndpoint_)
+        {
+            syslog(LOG_ERR, "tftpd: invalid ID!\n");
+            send_nak(EBADID);
+            return 0;   // OK
+        }
+
         do {
             dp->th_opcode = ntohs((u_short)dp->th_opcode);
             // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
@@ -579,14 +584,14 @@ protected:
         // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
         ap->th_block = htons((u_short)(block));
         (void)socket_.send_to(asio::buffer(ackbuf_, TFTP_HEADER),
-                              sender_endpoint_);
+                              clientEndpoint_);
 
         start_timeout(rexmtval);
         timeout_ = maxtimeout; // NOTE: Normally times out and quits
 
         // Run an asynchronous read operation with a timeout.
         socket_.async_receive_from(
-            asio::buffer(rxbuf_, sizeof(rxbuf_)), sender_endpoint_,
+            asio::buffer(rxbuf_, sizeof(rxbuf_)), senderEndpoint_,
             [this](std::error_code ec, std::size_t bytes_recvd) {
                 if (!ec) {
                     struct tftphdr *dp = (struct tftphdr *)this->rxbuf_;
@@ -598,7 +603,7 @@ protected:
                         /* resend final ack */
                         (void)socket_.send_to(
                             asio::buffer(this->ackbuf_, TFTP_HEADER),
-                            this->sender_endpoint_);
+                            this->clientEndpoint_);
                     }
                 }
                 timer_.cancel();
@@ -642,7 +647,8 @@ protected:
 private:
     udp::socket socket_;
     asio::steady_timer timer_;
-    udp::endpoint sender_endpoint_;
+    udp::endpoint senderEndpoint_;
+    udp::endpoint clientEndpoint_;
     enum
     {
         max_length = PKTSIZE
