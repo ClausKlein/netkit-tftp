@@ -20,9 +20,8 @@ PROJECT_NAME:=$(shell basename $${PWD})
 checkAllHeader?='$(CURDIR)/.*'
 
 # NOTE: there are many errors with boost::test, doctest, catch test framework! CK
-CHECKS:=''
-CHECKS?='-cppcoreguidelines-avoid-c-arrays,-modernize-avoid-c-arrays'
-CHECKS?='-*,cppcoreguidelines-*,-cppcoreguidelines-pro-*,cppcoreguidelines-avoid-c-arrays'
+CHECKS?='-cppcoreguidelines-pro-bounds-*,-cppcoreguidelines-pro-type-vararg'
+CHECKS?='-*,cppcoreguidelines-*,cppcoreguidelines-pro-*'
 CHECKS?='-*,portability-*,readability-*'
 CHECKS?='-*,misc-*,boost-*,cert-*,misc-unused-parameters'
 

@@ -57,6 +57,7 @@
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <sys/types.h>
+#include <syslog.h>
 #include <unistd.h>
 
 struct bf
@@ -206,6 +207,7 @@ int write_behind(FILE *file, bool /*convert*/)
     buf = dp->th_data;
 
     if (count <= 0) {
+        syslog(LOG_ERR, "tftpd: write buffer error!\n");
         return -1; /* nak logic? */
     }
 
