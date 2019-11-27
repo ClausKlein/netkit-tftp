@@ -6,3 +6,4 @@ tftpd/*.o
 tftpd/tftpd
 tftpd/tftpsubs.c
 tftpd/tftpsubs.h
+lcov/

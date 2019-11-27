@@ -61,6 +61,7 @@ bin/tftpd_test 1234 &
 printf "verbose\ntrace\nbinary\nput rules.ninja\n" | bin/tftp 127.0.0.1 1234
 diff ${TFTPDIR}/rules.ninja rules.ninja
 wait
+sleep 4
 ##############################################
 ## test modulo blocksize upload
 # dd if=bin/tftpd_test of=test1k.dat bs=1024 count=1
@@ -81,6 +82,7 @@ bin/tftpd_test 1234 &
 ${TFTP} -m binary -c put bin/tftpd_test tftpd_test
 diff ${TFTPDIR}/tftpd_test bin/tftpd_test
 wait
+sleep 4
 ##############################################
 ## absolut path upload with modulo blocksize
 dd if=bin/tftpd_test of=test32k.dat bs=1024 count=32
@@ -88,6 +90,7 @@ bin/tftpd_test 1234 &
 ${TFTP} -m binary -c put test32k.dat ${TFTPDIR}/test32k.dat
 diff ${TFTPDIR}/test32k.dat test32k.dat
 wait
+sleep 4
 ##############################################
 
 # ascii upload must fail
