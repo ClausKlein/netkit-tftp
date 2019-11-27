@@ -31,9 +31,8 @@
  * SUCH DAMAGE.
  */
 
-char copyright[] =
-    "@(#) Copyright (c) 1983 Regents of the University of California.\n"
-    "All rights reserved.\n";
+char copyright[] = "@(#) Copyright (c) 1983 Regents of the University of California.\n"
+                   "All rights reserved.\n";
 
 /*
  * From: @(#)tftpd.c    5.13 (Berkeley) 2/26/91
@@ -65,25 +64,11 @@ char copyright[] =
 // ~~~~~~~~~~~~~~~~~~~~~~~~~
 //
 
-#include <type_traits>
-
-#undef USE_SYNC_RECEIVE
-#ifndef USE_SYNC_RECEIVE
-// NO! to much! #include "asio.hpp"
-#    include <asio/io_context.hpp>
-#    include <asio/ip/udp.hpp>
-#    include <asio/read.hpp>
-#    include <asio/steady_timer.hpp>
-#    include <asio/system_error.hpp>
-#    include <asio/write.hpp>
-// not yet! #include <asio/use_future.hpp>
-#else
-#    include <asio/ts/buffer.hpp>
-#    include <asio/ts/internet.hpp>
-#endif
-
+#include <asio/ts/buffer.hpp>
+#include <asio/ts/internet.hpp>
 #include <boost/algorithm/string/case_conv.hpp>
 #include <boost/algorithm/string/predicate.hpp>
+
 // XXX #include <boost/current_function.hpp>
 #define BOOST_CURRENT_FUNCTION static_cast<const char *>(__PRETTY_FUNCTION__)
 
@@ -94,10 +79,13 @@ char copyright[] =
 #include <iostream>
 #include <memory>
 #include <string>
+#include <type_traits>
 #include <utility>
 #include <vector>
 
+namespace tftpd {
 static int validate_access(std::string &filename, int mode, FILE *&file);
+static int tftp(const std::vector<char> &rxbuffer, FILE *&file, std::string &file_path);
 
 constexpr int ERRNO_OFFSET{100};
 constexpr int TIMEOUT{3};
@@ -107,8 +95,13 @@ constexpr int maxtimeout{5 * TIMEOUT};
 static const char *default_dirs[] = {"/tmp/tftpboot", 0};
 static const char *const *dirs = static_cast<const char *const *>(default_dirs);
 
+// Avoid storms of naks to a RRQ broadcast for a relative bootfile pathname from a diskless Sun.
 constexpr bool suppress_error{false};
+// Change root directory on startup. This means the remote host does not need to pass along the directory as part of the
+// transfer, and may add security.
 constexpr bool secure_tftp{false};
+// Allow new files to be created. Normaly, tftpd will only allow upload of files that already exist.
+constexpr bool allow_create{true};
 
 struct formats
 {
@@ -117,33 +110,32 @@ struct formats
     // int (*f_send)(struct formats *);
     // int (*f_recv)(struct formats *);
     bool f_convert;
-} formats[] =
-    { // XXX {"netascii", /* validate_access, sendfile, recvfile, */ true},
-        {"octet", /* validate_access, sendfile, recvfile, */ false},
-        {0, false}};
+} formats[] = { // XXX {"netascii", /* validate_access, sendfile, recvfile, */ true},
+    {"octet", /* validate_access, sendfile, recvfile, */ false},
+    {0, false}};
 
 /*
  * Handle initial connection protocol.
  */
-int tftp(const std::vector<char> &rxbuffer, FILE *&file, std::string &file_path)
+static int tftp(const std::vector<char> &rxbuffer, FILE *&file, std::string &file_path)
 {
     syslog(LOG_NOTICE, "%s(%lu)\n", BOOST_CURRENT_FUNCTION, rxbuffer.size());
 
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-cstyle-cast)
     struct tftphdr *tp = (struct tftphdr *)(rxbuffer.data());
     tp->th_opcode = ntohs(tp->th_opcode);
     if ((tp->th_opcode != RRQ) && (tp->th_opcode != WRQ)) {
-        syslog(LOG_ERR, "tftpd: invalid state!\n");
+        syslog(LOG_ERR, "tftpd: invalid opcode request!\n");
         return (EBADID);
     }
 
     const char *cp;
-    const char *filename, *mode = NULL;
+    const char *filename, *mode = nullptr;
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
     filename = cp = static_cast<const char *>(tp->th_stuff);
 
     bool first = true;
     do {
-        // TODO: for(const char& c: rxbuffer)
         while (cp < rxbuffer.data() + rxbuffer.size()) {
             if (*cp == '\0') {
                 break;
@@ -154,6 +146,7 @@ int tftp(const std::vector<char> &rxbuffer, FILE *&file, std::string &file_path)
             syslog(LOG_WARNING, "tftpd: missing filename\n");
             return (EBADOP);
         }
+
         if (first) {
             mode = ++cp;
             first = false;
@@ -161,10 +154,13 @@ int tftp(const std::vector<char> &rxbuffer, FILE *&file, std::string &file_path)
         }
         break;
     } while (true);
+    if ((mode == nullptr) || (rxbuffer.back() != '\0')) {
+        syslog(LOG_ERR, "tftpd: invalid option field!\n");
+        return (EBADID);
+    }
 
     std::string l_mode(mode);
     boost::to_lower(l_mode);
-
     struct formats *pf;
     // NOLINTNEXTLINE
     for (pf = formats; pf->f_mode != nullptr; pf++) {
@@ -180,10 +176,6 @@ int tftp(const std::vector<char> &rxbuffer, FILE *&file, std::string &file_path)
     file_path = filename;
     int ecode = validate_access(file_path, tp->th_opcode, file);
     if (ecode != 0) {
-        /*
-         * Avoid storms of naks to a RRQ broadcast for a relative
-         * bootfile pathname from a diskless Sun.
-         */
         if (suppress_error && *filename != '/' && ecode == ENOTFOUND) {
             syslog(LOG_WARNING, "tftpd: deny to asscess file: %s\n", filename);
             return 0; // OK
@@ -216,21 +208,18 @@ static int validate_access(std::string &filename, int mode, FILE *&file)
     int fd;
     const char *const *dirp;
 
-    syslog(LOG_NOTICE, "tftpd: Validate access to file: %s\n",
-           filename.c_str());
+    syslog(LOG_NOTICE, "tftpd: Validate access to file: %s\n", filename.c_str());
 
     /*
      * prevent tricksters from getting around the directory restrictions
      */
     if (starts_with(filename, "../")) {
-        syslog(LOG_WARNING, "tftpd: Blocked illegal request for %s\n",
-               filename.c_str());
+        syslog(LOG_WARNING, "tftpd: Blocked illegal request for %s\n", filename.c_str());
         return EACCESS;
     }
 
     if (filename.find("/../") != std::string::npos) {
-        syslog(LOG_WARNING, "tftpd: Blocked illegal request for %s\n",
-               filename.c_str());
+        syslog(LOG_WARNING, "tftpd: Blocked illegal request for %s\n", filename.c_str());
         return (EACCESS);
     }
 
@@ -256,8 +245,7 @@ static int validate_access(std::string &filename, int mode, FILE *&file)
             syslog(LOG_WARNING, "tftpd: invalid root dir!\n");
             return (EACCESS);
         }
-        syslog(LOG_NOTICE, "tftpd: Check access to file %s\n",
-               filename.c_str());
+        syslog(LOG_NOTICE, "tftpd: Check access to file %s\n", filename.c_str());
     }
 
     if (stat(filename.c_str(), &stbuf) < 0) {
@@ -286,30 +274,32 @@ static int validate_access(std::string &filename, int mode, FILE *&file)
     }
 #endif
 
+    std::string tmpname = filename;
     if (mode == RRQ) {
         if ((stbuf.st_mode & S_IROTH) == 0) {
             syslog(LOG_WARNING, "tftpd: File has not S_IROTH set\n");
             return (EACCESS);
         }
 
-    } else if (secure_tftp) {
+    } else if (!allow_create) {
         if ((stbuf.st_mode & S_IWOTH) == 0) {
             syslog(LOG_WARNING, "tftpd: File has not S_IWOTH set\n");
             return (EACCESS);
         }
+    } else {
+        tmpname.append(".upload");
     }
 
-    fd = open(filename.c_str(),
-              (mode == RRQ ? O_RDONLY : (O_WRONLY | O_TRUNC | O_CREAT)), 0666);
+    fd = open(tmpname.c_str(), (mode == RRQ ? O_RDONLY : (O_WRONLY | O_TRUNC | O_CREAT)), 0666);
     if (fd < 0) {
         return (errno + ERRNO_OFFSET);
     }
     file = fdopen(fd, (mode == RRQ) ? "r" : "w");
-    if (file == NULL) {
+    if (file == nullptr) {
         return errno + ERRNO_OFFSET;
     }
 
-    syslog(LOG_NOTICE, "tftpd: successfully open file\n");
+    syslog(LOG_NOTICE, "tftpd: successfully open file: %s\n", tmpname.c_str());
     return 0; // OK
 }
 
@@ -335,12 +325,13 @@ class server
 {
 public:
     server(asio::io_context &io_context, short port)
-        : socket_(io_context, udp::endpoint(udp::v4(), port)),
-          timer_(io_context), timeout_(rexmtval)
+        : socket_(io_context, udp::endpoint(udp::v4(), port)), timer_(io_context), timeout_(rexmtval)
     {
         start_timeout(maxtimeout); // max idle wait ...
         do_receive();
     }
+
+    std::string get_filename() { return file_path_; }
 
 protected:
     void cancel_timeout() { timer_.cancel(); }
@@ -349,8 +340,10 @@ protected:
 
     void start_last_timeout()
     {
+        syslog(LOG_NOTICE, "%s\n", BOOST_CURRENT_FUNCTION);
         start_timeout(rexmtval);
         timeout_ = maxtimeout; // NOTE: Normally times out and quits
+        last_timeout_ = true;
     }
 
     void start_timeout(size_t seconds)
@@ -359,47 +352,48 @@ protected:
         timer_.cancel();
         timer_.expires_after(std::chrono::seconds(seconds));
         timer_.async_wait([this](const std::error_code &error) {
+            // Cancel all asynchronous operations associated with the socket.
             if (!error) {
-                syslog(LOG_WARNING, "tftpd: timeout!\n");
                 timeout_ += rexmtval;
-                // Cancel all asynchronous operations associated with the
-                // socket.
+                if (!last_timeout_) {
+                    syslog(LOG_WARNING, "tftpd: timeout!\n");
+                }
                 if (socket_.is_open()) {
                     socket_.cancel();
                     if (timeout_ >= maxtimeout) {
-                        syslog(LOG_ERR, "tftpd: maxtimeout!\n");
                         socket_.close();
+                        if (!last_timeout_) {
+                            syslog(LOG_ERR, "tftpd: maxtimeout!\n");
+                            throw std::system_error(std::make_error_code(std::errc::timed_out));
+                        }
                     }
                 }
             }
         });
     }
 
-    virtual std::shared_ptr<FILE>
-    start_recvfile(const udp::endpoint &senderEndpoint_, FILE *&file) = 0;
+    virtual std::shared_ptr<FILE> start_recvfile(const udp::endpoint &senderEndpoint_, FILE *&file) = 0;
 
     void do_receive()
     {
         syslog(LOG_NOTICE, "%s\n", BOOST_CURRENT_FUNCTION);
         rxdata_.resize(max_length);
-        socket_.async_receive_from(
-            asio::buffer(rxdata_, max_length), senderEndpoint_,
-            [this](std::error_code ec, std::size_t bytes_recvd) {
-                if (!ec && bytes_recvd > 0) {
-                    rxdata_.resize(bytes_recvd);
-                    FILE *file = nullptr;
-                    int error = tftp(rxdata_, file, file_path_);
-                    if (error != 0) {
-                        send_error(error);
-                    } else {
-                        socket_.close();
-                        socket_.open(udp::v4());
-                        socket_.bind(udp::endpoint(udp::v4(), 0));
-                        this->file_guard_ =
-                            start_recvfile(senderEndpoint_, file);
-                    }
-                }
-            });
+        socket_.async_receive_from(asio::buffer(rxdata_, max_length), senderEndpoint_,
+                                   [this](std::error_code ec, std::size_t bytes_recvd) {
+                                       if (!ec && bytes_recvd > 0) {
+                                           rxdata_.resize(bytes_recvd);
+                                           FILE *file = nullptr;
+                                           int error = tftp(rxdata_, file, file_path_);
+                                           if (error != 0) {
+                                               send_error(error);
+                                           } else {
+                                               socket_.close();
+                                               socket_.open(udp::v4());
+                                               socket_.bind(udp::endpoint(udp::v4(), 0));
+                                               this->file_guard_ = start_recvfile(senderEndpoint_, file);
+                                           }
+                                       }
+                                   });
 
         // NOTE: we need to return! CK
     }
@@ -416,6 +410,7 @@ protected:
         std::vector<char> txbuf;
         txbuf.resize(PKTSIZE);
 
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-cstyle-cast)
         tp = (struct tftphdr *)txbuf.data();
         tp->th_opcode = htons((u_short)ERROR);
         // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
@@ -426,14 +421,13 @@ protected:
             }
         }
 
-        // TODO: prevent strncpy usage, use std::string! CK
         if (pe->e_code < 0) {
             pe->e_msg = strerror(error - ERRNO_OFFSET);
             // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
-            tp->th_code =
-                htons((u_short)EUNDEF); /* set 'eundef(0)' errorcode */
+            tp->th_code = htons((u_short)EUNDEF); /* set 'eundef(0)' errorcode */
         }
         size_t extra = TFTP_HEADER + 1;
+        // TODO: prevent strncpy usage, use std::string! CK
         // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
         strncpy(tp->th_msg, pe->e_msg, PKTSIZE - extra);
         length = strlen(pe->e_msg);
@@ -447,43 +441,39 @@ protected:
     void do_send_error(const std::vector<char> &txdata)
     {
         syslog(LOG_NOTICE, "%s\n", BOOST_CURRENT_FUNCTION);
-        socket_.async_send_to(
-            asio::buffer(txdata), senderEndpoint_,
-            [this](std::error_code /*ec*/, std::size_t /*bytes_sent*/) {
-                // XXX if (ec) { syslog(LOG_ERR, "do_send_error: %s\n",
-                // ec.message().c_str()); }
-                // TODO: now we have no timer running, the run loop terminates
-                // ...
-                timer_.cancel();
-            });
+        socket_.async_send_to(asio::buffer(txdata), senderEndpoint_,
+                              [this](std::error_code /*ec*/, std::size_t /*bytes_sent*/) {
+                                  // XXX if (ec) { syslog(LOG_ERR, "do_send_error: %s\n", ec.message().c_str()); }
+                                  // TODO: now we have no timer running, the run loop terminates
+                                  timer_.cancel();
+                                  throw std::system_error(std::make_error_code(std::errc::operation_canceled));
+                              });
     }
 
     udp::socket socket_;
+    udp::endpoint senderEndpoint_;
     std::shared_ptr<FILE> file_guard_;
     std::string file_path_;
 
 private:
     asio::steady_timer timer_;
-    udp::endpoint senderEndpoint_;
     enum
     {
         max_length = PKTSIZE
     };
     std::vector<char> rxdata_;
     int timeout_;
+    bool last_timeout_ = {false};
 };
 
 class receiver : public server
 {
 public:
-    receiver(asio::io_context &io_context, short port)
-        : server(io_context, port)
-    {}
+    receiver(asio::io_context &io_context, short port) : server(io_context, port) {}
 
-    std::shared_ptr<FILE> start_recvfile(const udp::endpoint &senderEndpoint_,
-                                         FILE *&file) override
+    std::shared_ptr<FILE> start_recvfile(const udp::endpoint &senderEndpoint, FILE *&file) override
     {
-        clientEndpoint_ = senderEndpoint_;
+        clientEndpoint_ = senderEndpoint;
         syslog(LOG_NOTICE, "%s\n", BOOST_CURRENT_FUNCTION);
         std::shared_ptr<FILE> file_guard(file, std::fclose);
         block = 0;
@@ -496,6 +486,7 @@ public:
     void send_ack()
     {
         syslog(LOG_NOTICE, "%s\n", BOOST_CURRENT_FUNCTION);
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-cstyle-cast)
         struct tftphdr *ap = (struct tftphdr *)ackbuf_; /* ptr to ack buffer */
         ap->th_opcode = htons((u_short)ACK);
         // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
@@ -510,16 +501,14 @@ public:
         // output the current buffer if needed
         (void)write_behind(file_guard_.get(), false);
 
-        socket_.async_send_to(
-            asio::buffer(ackbuf_, TFTP_HEADER), clientEndpoint_,
-            [this](std::error_code ec, std::size_t /*bytes_sent*/) {
-                if (ec) {
-                    syslog(LOG_ERR, "tftpd: send_ackbuf: %s\n",
-                           ec.message().c_str());
-                } else {
-                    receive_block();
-                }
-            });
+        socket_.async_send_to(asio::buffer(ackbuf_, TFTP_HEADER), clientEndpoint_,
+                              [this](std::error_code ec, std::size_t /*bytes_sent*/) {
+                                  if (ec) {
+                                      syslog(LOG_ERR, "tftpd: send_ackbuf: %s\n", ec.message().c_str());
+                                  } else {
+                                      receive_block();
+                                  }
+                              });
     }
 
     void receive_block()
@@ -527,40 +516,35 @@ public:
         syslog(LOG_NOTICE, "%s\n", BOOST_CURRENT_FUNCTION);
         // Run an asynchronous read operation with a timeout.
         restart_timeout();
-        socket_.async_receive_from(
-            asio::buffer(dp, PKTSIZE), clientEndpoint_,
-            [this](std::error_code ec, std::size_t bytes_recvd) {
-                if (ec) {
-                    syslog(LOG_ERR, "tftpd: read data: %s\n",
-                           ec.message().c_str());
-                } else {
-                    int err = check_and_write_block(bytes_recvd);
-                    if (err != 0) {
-                        syslog(LOG_ERR, "tftpd: check data: %s\n",
-                               strerror(err));
-                        send_error(err);
-                    }
-                }
-            });
+        socket_.async_receive_from(asio::buffer(dp, PKTSIZE), clientEndpoint_,
+                                   [this](std::error_code ec, std::size_t bytes_recvd) {
+                                       if (ec) {
+                                           syslog(LOG_ERR, "tftpd: read data: %s\n", ec.message().c_str());
+                                       } else {
+                                           int err = check_and_write_block(bytes_recvd);
+                                           if (err != 0) {
+                                               syslog(LOG_ERR, "tftpd: check data: %s\n", strerror(err));
+                                               send_error(err);
+                                           }
+                                       }
+                                   });
     }
 
     int check_and_write_block(int rxlen)
     {
         syslog(LOG_NOTICE, "%s(%d)\n", BOOST_CURRENT_FUNCTION, block);
 
-#if 0
         if (senderEndpoint_ != clientEndpoint_) {
-            syslog(LOG_ERR, "tftpd: invalid ID!\n");
+            syslog(LOG_ERR, "tftpd: invalid endpoint ID!\n");
             return (EBADID);
         }
-#endif
 
         do {
             dp->th_opcode = ntohs((u_short)dp->th_opcode);
             // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
             dp->th_block = ntohs((u_short)dp->th_block);
             if (dp->th_opcode == ERROR) {
-                syslog(LOG_ERR, "tftpd: NAK received!\n");
+                syslog(LOG_ERR, "tftpd: ERROR received, abort!\n");
                 return 0; // OK
             }
 
@@ -580,7 +564,7 @@ public:
                     return 0;      // OK
                 }
             } else {
-                syslog(LOG_ERR, "tftpd: invalid state!\n");
+                syslog(LOG_ERR, "tftpd: invalid opcode, DATA expected!\n");
                 return (EBADID);
             }
         } while (false);
@@ -604,8 +588,11 @@ public:
         }
 
         // =======================================================
-        (void)write_behind(file_guard_.get(),
-                           false); // write the final data segment
+        // write the final data segment
+        (void)write_behind(file_guard_.get(), false);
+        std::string old_path(file_path_ + ".upload");
+        (void)rename(old_path.c_str(), file_path_.c_str());
+        syslog(LOG_NOTICE, "tftpd: successfully received file: %s\n", file_path_.c_str());
         // =======================================================
 
         send_last_ack();
@@ -616,29 +603,27 @@ public:
     void send_last_ack()
     {
         syslog(LOG_NOTICE, "%s\n", BOOST_CURRENT_FUNCTION);
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-cstyle-cast)
         struct tftphdr *ap = (struct tftphdr *)ackbuf_; /* ptr to ack buffer */
-        ap->th_opcode = htons((u_short)ACK); /* send the "final" ack */
+        ap->th_opcode = htons((u_short)ACK);            /* send the "final" ack */
         // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
         ap->th_block = htons((u_short)(block));
-        (void)socket_.send_to(asio::buffer(ackbuf_, TFTP_HEADER),
-                              clientEndpoint_);
+        (void)socket_.send_to(asio::buffer(ackbuf_, TFTP_HEADER), clientEndpoint_);
         start_last_timeout();
 
         // Run an asynchronous read operation with a timeout.
         socket_.async_receive_from(
-            asio::buffer(rxbuf_, sizeof(rxbuf_)), clientEndpoint_,
-            [this](std::error_code ec, std::size_t bytes_recvd) {
+            asio::buffer(rxbuf_, sizeof(rxbuf_)), clientEndpoint_, [this](std::error_code ec, std::size_t bytes_recvd) {
                 if (!ec) {
+                    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-cstyle-cast)
                     struct tftphdr *dp = (struct tftphdr *)this->rxbuf_;
                     if ((bytes_recvd >= TFTP_HEADER) && /* if read some data */
-                        (dp->th_opcode == DATA) && /* and got a data block */
+                        (dp->th_opcode == DATA) &&      /* and got a data block */
                         // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
                         (this->block == dp->th_block)) {
                         /* then my last ack was lost */
                         /* resend final ack */
-                        (void)socket_.send_to(
-                            asio::buffer(this->ackbuf_, TFTP_HEADER),
-                            this->clientEndpoint_);
+                        (void)socket_.send_to(asio::buffer(this->ackbuf_, TFTP_HEADER), this->clientEndpoint_);
                     }
                 }
                 cancel_timeout();
@@ -668,8 +653,8 @@ public:
             if (i != 0) {
                 j++;
                 fromlen = sizeof(from);
-                (void)recvfrom(s, rxbuf_, sizeof(rxbuf_), 0,
-                               (struct sockaddr *)&from, &fromlen);
+                // NOLINTNEXTLINE(cppcoreguidelines-pro-type-cstyle-cast)
+                (void)recvfrom(s, rxbuf_, sizeof(rxbuf_), 0, (struct sockaddr *)&from, &fromlen);
             } else {
                 if (j != 0) {
                     syslog(LOG_WARNING, "tftpd: discarded %d packets\n", j);
@@ -686,6 +671,7 @@ private:
     char rxbuf_[PKTSIZE] = {};
     volatile u_int16_t block = {0};
 };
+} // namespace tftpd
 
 int main(int argc, char *argv[])
 {
@@ -696,9 +682,14 @@ int main(int argc, char *argv[])
         }
 
         asio::io_context io_context;
-        receiver s(io_context, std::strtol(argv[1], nullptr, 10));
+        tftpd::receiver s(io_context, std::strtol(argv[1], nullptr, 10));
 
         io_context.run();
+
+        auto filename = s.get_filename();
+        if (!filename.empty()) {
+            std::cout << "Successfully received: " << filename << "\n";
+        }
     } catch (std::exception &e) {
         std::cerr << "Exception: " << e.what() << "\n";
         exit(EXIT_FAILURE);

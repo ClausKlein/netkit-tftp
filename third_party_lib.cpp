@@ -48,8 +48,7 @@ public:
     // operation.
     void do_write(std::error_code &ec)
     {
-        if (std::size_t len =
-                socket_.write_some(asio::buffer(write_buffer_), ec)) {
+        if (std::size_t len = socket_.write_some(asio::buffer(write_buffer_), ec)) {
             write_buffer_ = write_buffer_ + len;
             state_ = asio::buffer_size(write_buffer_) > 0 ? writing : reading;
         }
@@ -90,61 +89,59 @@ private:
         // Start a read operation if the third party library wants one.
         if (session_impl_.want_read() && !read_in_progress_) {
             read_in_progress_ = true;
-            socket_.async_wait(tcp::socket::wait_read,
-                               [this, self](std::error_code ec) {
-                                   read_in_progress_ = false;
+            socket_.async_wait(tcp::socket::wait_read, [this, self](std::error_code ec) {
+                read_in_progress_ = false;
 
-                                   // Notify third party library that it can
-                                   // perform a read.
-                                   if (!ec)
-                                       session_impl_.do_read(ec);
+                // Notify third party library that it can
+                // perform a read.
+                if (!ec)
+                    session_impl_.do_read(ec);
 
-                                   // The third party library successfully
-                                   // performed a read on the socket. Start new
-                                   // read or write operations based on what it
-                                   // now wants.
-                                   if (!ec || ec == asio::error::would_block)
-                                       do_operations();
+                // The third party library successfully
+                // performed a read on the socket. Start new
+                // read or write operations based on what it
+                // now wants.
+                if (!ec || ec == asio::error::would_block)
+                    do_operations();
 
-                                   // Otherwise, an error occurred. Closing the
-                                   // socket cancels any outstanding
-                                   // asynchronous read or write operations. The
-                                   // connection object will be destroyed
-                                   // automatically once those outstanding
-                                   // operations complete.
-                                   else
-                                       socket_.close();
-                               });
+                // Otherwise, an error occurred. Closing the
+                // socket cancels any outstanding
+                // asynchronous read or write operations. The
+                // connection object will be destroyed
+                // automatically once those outstanding
+                // operations complete.
+                else
+                    socket_.close();
+            });
         }
 
         // Start a write operation if the third party library wants one.
         if (session_impl_.want_write() && !write_in_progress_) {
             write_in_progress_ = true;
-            socket_.async_wait(tcp::socket::wait_write,
-                               [this, self](std::error_code ec) {
-                                   write_in_progress_ = false;
+            socket_.async_wait(tcp::socket::wait_write, [this, self](std::error_code ec) {
+                write_in_progress_ = false;
 
-                                   // Notify third party library that it can
-                                   // perform a write.
-                                   if (!ec)
-                                       session_impl_.do_write(ec);
+                // Notify third party library that it can
+                // perform a write.
+                if (!ec)
+                    session_impl_.do_write(ec);
 
-                                   // The third party library successfully
-                                   // performed a write on the socket. Start new
-                                   // read or write operations based on what it
-                                   // now wants.
-                                   if (!ec || ec == asio::error::would_block)
-                                       do_operations();
+                // The third party library successfully
+                // performed a write on the socket. Start new
+                // read or write operations based on what it
+                // now wants.
+                if (!ec || ec == asio::error::would_block)
+                    do_operations();
 
-                                   // Otherwise, an error occurred. Closing the
-                                   // socket cancels any outstanding
-                                   // asynchronous read or write operations. The
-                                   // connection object will be destroyed
-                                   // automatically once those outstanding
-                                   // operations complete.
-                                   else
-                                       socket_.close();
-                               });
+                // Otherwise, an error occurred. Closing the
+                // socket cancels any outstanding
+                // asynchronous read or write operations. The
+                // connection object will be destroyed
+                // automatically once those outstanding
+                // operations complete.
+                else
+                    socket_.close();
+            });
         }
     }
 
@@ -158,11 +155,7 @@ private:
 class server
 {
 public:
-    server(asio::io_context &io_context, unsigned short port)
-        : acceptor_(io_context, {tcp::v4(), port})
-    {
-        do_accept();
-    }
+    server(asio::io_context &io_context, unsigned short port) : acceptor_(io_context, {tcp::v4(), port}) { do_accept(); }
 
 private:
     void do_accept()

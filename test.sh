@@ -9,54 +9,51 @@ rm -rf ${TFTPDIR}
 ##############################################
 # upload must fail, no tftpboot dir
 bin/tftpd_test 1234 &
-${TFTP} -m binary -c put rules.ninja zero.data && exit 1
+${TFTP} -m binary -c put rules.ninja zero.dat && exit 1
 wait
 ##############################################
 
-
 mkdir ${TFTPDIR}
-chmod 755 ${TFTPDIR}
-touch ${TFTPDIR}/zero.data
-chmod 400 ${TFTPDIR}/zero.data
-
+chmod 700 ${TFTPDIR}
+touch ${TFTPDIR}/zero.dat
+chmod 400 ${TFTPDIR}/zero.dat
 
 # NOTE: we start server at bg
 # download must fail, dir not world readable
 bin/tftpd_test 1234 &
-${TFTP} -m binary -c get zero.data zero.data && exit 1
+${TFTP} -m binary -c get zero.dat zero.dat && exit 1
 wait
 
-# upload must fail, file not world writeable
-bin/tftpd_test 1234 &
-${TFTP} -m binary -c put rules.ninja zero.data && exit 1
-wait
+## upload should fail in secure mode if file not world writeable
+# bin/tftpd_test 1234 &
+# ${TFTP} -m binary -c put rules.ninja zero.dat && exit 1
+# wait
 
 # must fail no such file
 chmod 777 ${TFTPDIR}
 bin/tftpd_test 1234 &
-${TFTP} -m binary -c get zero.dat && exit 1
+${TFTP} -m binary -c get none.dat && exit 1
 wait
 
 ##############################################
 # NOTE: we start server at bg
-# download must fail
-touch ${TFTPDIR}/test16k.dat
-chmod 666 ${TFTPDIR}/test16k.dat
+# one upload must fail
 dd if=bin/tftpd_test of=test16k.dat bs=1024 count=16
 bin/tftpd_test 1234 &
-${TFTP} -m binary -c put test16k.dat &
+${TFTP} -m binary -c put test16k.dat first.dat &
 ${TFTP} -m binary -c put test16k.dat second.dat &
 echo "concurend clients started! ..."
 wait
-test -f ${TFTPDIR}/test16k.dat && diff test16k.dat ${TFTPDIR}/test16k.dat
+test -f ${TFTPDIR}/first.dat && diff test16k.dat ${TFTPDIR}/first.dat
 test -f ${TFTPDIR}/second.dat && diff test16k.dat ${TFTPDIR}/second.dat
 ##############################################
-# again 1 client only
+# download must fail
+# not 1 client only!
+chmod 666 ${TFTPDIR}/zero.dat
 bin/tftpd_test 1234 &
-${TFTP} -m binary -c get test16k.dat zero.dat && exit 1
+${TFTP} -m binary -c get zero.dat zero.dat && exit 1
 wait
 ##############################################
-
 
 ##############################################
 # normal binary upload with dublicate ack's
@@ -85,7 +82,7 @@ ${TFTP} -m binary -c put bin/tftpd_test tftpd_test
 diff ${TFTPDIR}/tftpd_test bin/tftpd_test
 wait
 ##############################################
-## absolut path upload
+## absolut path upload with modulo blocksize
 dd if=bin/tftpd_test of=test32k.dat bs=1024 count=32
 bin/tftpd_test 1234 &
 ${TFTP} -m binary -c put test32k.dat ${TFTPDIR}/test32k.dat

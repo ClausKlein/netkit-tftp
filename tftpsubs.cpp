@@ -175,7 +175,7 @@ int writeit(FILE *file, struct tftphdr **dpp, int ct, bool convert)
     bfs[current].counter = ct;             /* set size of data to write */
     current = !current;                    /* switch to other buffer */
     if (bfs[current].counter != BF_FREE) { /* if not free */
-        write_behind(file, convert);       /* flush it */
+        (void)write_behind(file, convert); /* flush it */
     }
     bfs[current].counter = BF_ALLOC; /* mark as alloc'd */
     *dpp = (struct tftphdr *)bfs[current].buf;
@@ -207,11 +207,10 @@ int write_behind(FILE *file, bool /*convert*/)
     buf = dp->th_data;
 
     if (count <= 0) {
-        syslog(LOG_ERR, "tftpd: write buffer error!\n");
-        return -1; /* nak logic? */
+        return -1; /* TBD: no nak logic! CK */
     }
 
-#if 1
+#ifndef USE_CONVERT
     return write(fileno(file), buf, count);
 #else
     if (!convert) {
