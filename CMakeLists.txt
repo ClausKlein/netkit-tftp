@@ -26,7 +26,7 @@ add_subdirectory(tftp)
 # target_link_libraries(async_udp_echo_server asio::standalone Threads::Threads)
 
 enable_testing()
-add_executable(tftpd_test tftpd.cpp tftpsubs.cpp tftp/tftpsubs.h)
+add_executable(tftpd_test tftpd_test.cpp tftpd.hpp tftpd_utils.cpp tftpsubs.cpp tftp/tftpsubs.h)
 target_link_libraries(tftpd_test asio::standalone Threads::Threads)
 ## add_test(NAME tftpd_test COMMAND tftpd_test 1234)
 add_test(NAME tftpd_test
@@ -40,6 +40,8 @@ if(CMAKE_BUILD_TYPE STREQUAL "Coverage")
 
     set(COVERAGE_EXCLUDES
         '/usr/*' '/opt/*'
+        '${CMAKE_SOURCE_DIR}/tftp/*'
+        '${CMAKE_SOURCE_DIR}/tftpd/*'
         '/Applications/Xcode.app/*'
     )
     setup_target_for_coverage(
