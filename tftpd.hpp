@@ -12,42 +12,32 @@
  * In July 1992 by RFC 1350 which fixed among other things the Sorcerer's
  * Apprentice Syndrome.
  *
- * This version includes many modifications by Jim Guyton <guyton@rand-unix>
+ * This version is based on code found in tftpd/ and tftp/ subdirs (CK)
+ *
+ * See copyright notice at: @(#)tftpd/tftpd.c	5.13 (Berkeley) 2/26/91
  */
 #include "tftp/tftpsubs.h"
-
-#include <arpa/tftp.h>
-#include <syslog.h>
-#include <unistd.h>
-
-//
-// async_tftpd_server.cpp
-// ~~~~~~~~~~~~~~~~~~~~~~~~~
-//
 
 #include <asio/ts/buffer.hpp>
 #include <asio/ts/internet.hpp>
 
-// #include <type_traits>
-
 #include <chrono>
 #include <cstdlib>
-#include <cstring> // TODO strncpy still used! CK
+#include <cstring> // strcpy still used! CK
 #include <functional>
 #include <iostream>
 #include <memory>
 #include <string>
+#include <syslog.h>
+#include <unistd.h>
 #include <utility>
 #include <vector>
-
-#define BOOST_CURRENT_FUNCTION static_cast<const char *>(__PRETTY_FUNCTION__)
 
 namespace tftpd {
 int validate_access(std::string &filename, int mode, FILE *&file);
 int tftp(const std::vector<char> &rxbuffer, FILE *&file, std::string &file_path);
 
-constexpr int ERRNO_OFFSET{100};
-constexpr int TIMEOUT{3};
+constexpr int TIMEOUT{1};
 constexpr int rexmtval{TIMEOUT};
 constexpr int maxtimeout{5 * TIMEOUT};
 
@@ -55,15 +45,15 @@ struct errmsg
 {
     int e_code;
     const char *e_msg;
-} errmsgs[] = {{EUNDEF, "Undefined error code"},
-               {ENOTFOUND, "File not found"},
-               {EACCESS, "Access violation"},
-               {ENOSPACE, "Disk full or allocation exceeded"},
-               {EBADOP, "Illegal TFTP operation"},
-               {EBADID, "Unknown transfer ID"},
-               {EEXISTS, "File already exists"},
-               {ENOUSER, "No such user"},
-               {-1, 0}};
+} static const errmsgs[] = {{EUNDEF, "Undefined error code"},
+                            {ENOTFOUND, "File not found"},
+                            {EACCESS, "Access violation"},
+                            {ENOSPACE, "Disk full or allocation exceeded"},
+                            {EBADOP, "Illegal TFTP operation"},
+                            {EBADID, "Unknown transfer ID"},
+                            {EEXISTS, "File already exists"},
+                            {ENOUSER, "No such user"},
+                            {-1, 0}};
 
 //----------------------------------------------------------------------
 using asio::ip::udp;
@@ -78,6 +68,14 @@ public:
         start_timeout(maxtimeout); // max idle wait ...
         do_receive();
     }
+
+    virtual ~server() = default;
+
+    server(const server &) = delete;
+    void operator=(const server &) = delete;
+
+    server(server &&) = delete;
+    server &operator=(server &&) = delete;
 
     std::string get_filename() { return file_path_; }
 
@@ -152,36 +150,35 @@ protected:
      */
     void send_error(int error)
     {
-        struct tftphdr *tp;
-        int length;
-        struct errmsg *pe;
+        const struct errmsg *pe;
         std::vector<char> txbuf;
         txbuf.resize(PKTSIZE);
+        std::string err_msg;
 
         // NOLINTNEXTLINE(cppcoreguidelines-pro-type-cstyle-cast)
-        tp = (struct tftphdr *)txbuf.data();
+        struct tftphdr *tp = (struct tftphdr *)txbuf.data();
         tp->th_opcode = htons((u_short)ERROR);
         // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
         tp->th_code = htons((u_short)error);
         for (pe = errmsgs; pe->e_code >= 0; pe++) {
             if (pe->e_code == error) {
+                err_msg = pe->e_msg;
                 break;
             }
         }
 
         if (pe->e_code < 0) {
-            pe->e_msg = strerror(error - ERRNO_OFFSET);
+            err_msg = strerror(error - ERRNO_OFFSET);
             // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
             tp->th_code = htons((u_short)EUNDEF); /* set 'eundef(0)' errorcode */
         }
-        size_t extra = TFTP_HEADER + 1;
-        // TODO: prevent strncpy usage, use std::string! CK
+
+        size_t extra = TFTP_HEADER + 1; // include strend '\0'
+        err_msg.resize(std::min(err_msg.size(), PKTSIZE - TFTP_HEADER));
+        size_t length = err_msg.size() + extra;
         // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
-        strncpy(tp->th_msg, pe->e_msg, PKTSIZE - extra);
-        length = strlen(pe->e_msg);
-        // XXX tp->th_msg[length] = '\0'; // NOTE: not realy needed! CK
-        length += extra;
-        txbuf.resize(length);
+        strcpy(tp->th_msg, err_msg.c_str());
+        txbuf.resize(std::min(length, PKTSIZE));
 
         do_send_error(txbuf);
     }

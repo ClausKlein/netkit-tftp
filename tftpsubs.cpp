@@ -49,11 +49,10 @@
  */
 #include "tftp/tftpsubs.h"
 
-#include <arpa/tftp.h>
+#include <csignal>
+#include <cstdio>
+#include <cstring>
 #include <netinet/in.h>
-#include <signal.h>
-#include <stdio.h>
-#include <string.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <sys/types.h>
@@ -90,6 +89,7 @@ struct tftphdr *rw_init(int x)
     current = 0;
     bfs[1].counter = BF_FREE;
     nextone = x; /* ahead or behind? */
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-cstyle-cast)
     return (struct tftphdr *)bfs[0].buf;
 }
 
@@ -178,6 +178,7 @@ int writeit(FILE *file, struct tftphdr **dpp, int ct, bool convert)
         (void)write_behind(file, convert); /* flush it */
     }
     bfs[current].counter = BF_ALLOC; /* mark as alloc'd */
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-cstyle-cast)
     *dpp = (struct tftphdr *)bfs[current].buf;
     return ct; /* this is a lie of course */
 }
@@ -202,8 +203,10 @@ int write_behind(FILE *file, bool /*convert*/)
 
     count = b->counter;   /* remember byte count */
     b->counter = BF_FREE; /* reset flag */
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-cstyle-cast)
     dp = (struct tftphdr *)b->buf;
     nextone = !nextone; /* incr for next time */
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
     buf = dp->th_data;
 
     if (count <= 0) {
@@ -226,9 +229,8 @@ int write_behind(FILE *file, bool /*convert*/)
             if (c == '\n') {        /* if have cr,lf then just */
                 fseek(file, -1, 1); /* smash lf on top of the cr */
             } else if (c == '\0') { /* if have cr,nul then */
-                // NOLINTNEXTLINE(cppcoreguidelines-avoid-goto)
-                goto skipit; /* just skip over the putc */
-                             /* else just fall through and allow it */
+                goto skipit;        /* just skip over the putc */
+                                    /* else just fall through and allow it */
             }
         }
         putc(c, file);

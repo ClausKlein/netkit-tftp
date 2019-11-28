@@ -9,19 +9,7 @@ add_executable(
     tftpd.c
     "${CMAKE_SOURCE_DIR}/tftp/tftpsubs.c"
 )
-install(
-    TARGETS in.tftpd
-    DESTINATION ${SBIN_DIR}
-)
 
-install(
-    FILES tftpd.8
-    DESTINATION ${MAN_DIR}/man8/
-    RENAME in.tftpd.8
-)
-INSTALL(
-    CODE "execute_process( \
-        COMMAND ${CMAKE_COMMAND} -E create_symlink \
-        in.tftpd.8 \$ENV{DESTDIR}${MAN_DIR}/man8/tftpd.8 \
-    )"
-)
+# install(TARGETS in.tftpd DESTINATION ${CMAKE_INSTALL_SBIN_DIR})
+# install(FILES tftpd.8 DESTINATION ${CMAKE_INSTALL_MAN_DIR}/man8/ RENAME in.tftpd.8)
+# install(CODE "execute_process( \ COMMAND ${CMAKE_COMMAND} -E create_symlink \ in.tftpd.8 \$ENV{DESTDIR}${CMAKE_INSTALL_MAN_DIR}/man8/tftpd.8 \)")

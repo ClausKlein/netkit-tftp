@@ -1,9 +1,13 @@
 #pragma once
 
+#include <arpa/tftp.h>
+
 #ifdef __cplusplus
 #    include <cstdint>
 #    include <cstdio>
 #    define _Bool bool
+#    define BOOST_CURRENT_FUNCTION static_cast<const char *>(__PRETTY_FUNCTION__)
+constexpr int ERRNO_OFFSET{100};
 #else
 #    include <stdint.h>
 #    include <stdio.h>

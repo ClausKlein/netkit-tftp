@@ -49,7 +49,6 @@ char subs_rcsid[] = "$Id: tftpsubs.c,v 1.8 2000/07/22 19:06:29 dholland Exp $";
 
 #include "tftpsubs.h"
 
-#include <arpa/tftp.h>
 #include <netinet/in.h>
 #include <signal.h>
 #include <stdio.h>
@@ -169,7 +168,6 @@ void read_ahead(FILE *file, int convert /* if true, convert to ascii */)
     b->counter = (int)(p - dp->th_data);
 }
 
-#if 0
 /* Update count associated with the buffer, get new buffer
    from the queue.  Calls write_behind only if next buffer not
    available.
@@ -234,7 +232,6 @@ int write_behind(FILE *file, int convert)
     }
     return count;
 }
-#endif
 
 /* When an error has occurred, it is possible that the two sides
  * are out of synch.  Ie: that what I think is the other side's

@@ -149,8 +149,9 @@ void sendfile(int fd, char *name, char *mode)
         }
 
 #ifndef NDEBUG
-        // NOTE: test retransmit 1 time the first block only! CK
-        if ((debug && (timeout == 0) && (block == 1))) {
+        // NOTE: test retransmit 2 time each odd block only! CK
+        if ((debug &&  ((block % 2) == 1))) {
+            (void)sendto(f, dp, size + 4, 0, (struct sockaddr *)&from, fromlen);
             (void)sendto(f, dp, size + 4, 0, (struct sockaddr *)&from, fromlen);
         }
 #endif

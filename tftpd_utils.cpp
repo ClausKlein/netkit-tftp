@@ -39,13 +39,17 @@ char copyright[] = "@(#) Copyright (c) 1983 Regents of the University of Califor
  */
 // char rcsid[] = "$Id: tftpd.c,v 1.20 2000/07/29 18:37:21 dholland Exp $";
 
+/*
+ * This version includes many modifications by Jim Guyton <guyton@rand-unix>
+ */
+
+#include "async_tftpd_server.hpp"
 #include "tftp/tftpsubs.h"
 
 #include <boost/algorithm/string/case_conv.hpp>
 #include <boost/algorithm/string/predicate.hpp>
 
 #include <arpa/inet.h>
-#include <arpa/tftp.h>
 #include <cstdlib>
 #include <fcntl.h>
 #include <memory>
@@ -56,23 +60,17 @@ char copyright[] = "@(#) Copyright (c) 1983 Regents of the University of Califor
 #include <unistd.h>
 #include <vector>
 
-// XXX #include <boost/current_function.hpp>
-#define BOOST_CURRENT_FUNCTION static_cast<const char *>(__PRETTY_FUNCTION__)
-
 namespace tftpd {
 int validate_access(std::string &filename, int mode, FILE *&file);
 int tftp(const std::vector<char> &rxbuffer, FILE *&file, std::string &file_path);
 
-constexpr int ERRNO_OFFSET{100};
-
-static const char *default_dirs[] = {"/tmp/tftpboot", 0};
 static const char *const *dirs = static_cast<const char *const *>(default_dirs);
 
 // Avoid storms of naks to a RRQ broadcast for a relative bootfile pathname from a diskless Sun.
 constexpr bool suppress_error{false};
 // Change root directory on startup. This means the remote host does not need to pass along the directory as part of the
 // transfer, and may add security.
-constexpr bool secure_tftp{false};
+constexpr bool secure_tftp{true};
 // Allow new files to be created. Normaly, tftpd will only allow upload of files that already exist.
 constexpr bool allow_create{true};
 
@@ -196,7 +194,7 @@ int validate_access(std::string &filename, int mode, FILE *&file)
         return (EACCESS);
     }
 
-    if (filename[0] != '/' || secure_tftp) {
+    if (secure_tftp || filename[0] != '/') {
         syslog(LOG_NOTICE, "tftpd: Check file access at %s\n", dirs[0]);
         if (chdir(dirs[0]) < 0) {
             syslog(LOG_WARNING, "tftpd: chdir: %s\n", strerror(errno));
@@ -223,7 +221,7 @@ int validate_access(std::string &filename, int mode, FILE *&file)
 
     if (stat(filename.c_str(), &stbuf) < 0) {
         // stat error, no such file or no read access
-        if (mode == RRQ || secure_tftp) {
+        if (mode == RRQ && secure_tftp) {
             syslog(LOG_WARNING, "tftpd: File not found %s\n", filename.c_str());
             return (errno == ENOENT ? ENOTFOUND : EACCESS);
         }

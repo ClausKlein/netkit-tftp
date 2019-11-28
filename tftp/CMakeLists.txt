@@ -6,6 +6,6 @@ add_executable(
     tftpsubs.c
 )
 
-# install(TARGETS tftp DESTINATION ${BIN_DIR})
-# install(FILES tftp.1 DESTINATION ${MAN_DIR}/man1/)
+# install(TARGETS tftp DESTINATION ${CMAKE_INSTALL_BIN_DIR})
+# install(FILES tftp.1 DESTINATION ${CMAKE_INSTALL_MAN_DIR}/man1/)
 

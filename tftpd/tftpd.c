@@ -55,7 +55,6 @@ char rcsid[] = "$Id: tftpd.c,v 1.20 2000/07/29 18:37:21 dholland Exp $";
 #include "../version.h"
 #include "tftpsubs.h"
 
-#include <arpa/tftp.h>
 #include <ctype.h>
 #include <errno.h>
 #include <grp.h>
