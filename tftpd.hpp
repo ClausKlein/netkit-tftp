@@ -34,10 +34,12 @@
 #include <vector>
 
 namespace tftpd {
+extern const char *rootdir;  // the only tftp root dir used!
+
 int validate_access(std::string &filename, int mode, FILE *&file);
 int tftp(const std::vector<char> &rxbuffer, FILE *&file, std::string &file_path);
 
-constexpr int TIMEOUT{1};
+constexpr int TIMEOUT{2};
 constexpr int rexmtval{TIMEOUT};
 constexpr int maxtimeout{5 * TIMEOUT};
 

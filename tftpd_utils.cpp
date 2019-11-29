@@ -61,10 +61,17 @@ char copyright[] = "@(#) Copyright (c) 1983 Regents of the University of Califor
 #include <vector>
 
 namespace tftpd {
+extern const char *rootdir;  // the only tftp root dir used!
+
 int validate_access(std::string &filename, int mode, FILE *&file);
 int tftp(const std::vector<char> &rxbuffer, FILE *&file, std::string &file_path);
 
-static const char *const *dirs = static_cast<const char *const *>(default_dirs);
+/// the only directory used by the tftpd
+///
+/// @note this can't be changed!
+/// @attention it has to be created before server is started!
+constexpr const char *default_dirs[]{"/tmp/tftpboot", ""};
+const char *const *dirs = static_cast<const char *const *>(default_dirs);
 
 // Avoid storms of naks to a RRQ broadcast for a relative bootfile pathname from a diskless Sun.
 constexpr bool suppress_error{false};
@@ -195,8 +202,8 @@ int validate_access(std::string &filename, int mode, FILE *&file)
     }
 
     if (secure_tftp || filename[0] != '/') {
-        syslog(LOG_NOTICE, "tftpd: Check file access at %s\n", dirs[0]);
-        if (chdir(dirs[0]) < 0) {
+        syslog(LOG_NOTICE, "tftpd: Check file access at %s\n", rootdir);
+        if (chdir(rootdir) < 0) {
             syslog(LOG_WARNING, "tftpd: chdir: %s\n", strerror(errno));
             return (EACCESS);
         }
@@ -204,7 +211,7 @@ int validate_access(std::string &filename, int mode, FILE *&file)
         while (filename[0] == '/') {
             filename = filename.substr(1);
         }
-        filename = std::string(dirs[0]) + "/" + filename;
+        filename = std::string(rootdir) + "/" + filename;
     } else {
         // NOLINTNEXTLINE
         for (dirp = dirs; *dirp != 0; dirp++) {

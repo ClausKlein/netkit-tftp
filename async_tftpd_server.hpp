@@ -7,17 +7,13 @@
 
 namespace tftpd {
 
-/// the only directory used by the tftpd
-///
-/// @note this can't be changed!
-/// @attention it has to be created before server is started!
-constexpr const char *default_dirs[]{"/tmp/tftpboot", ""};
-
 /// receive 1 file with tftp protocol
 ///
 /// @param port the UDP port used by tftpd
+/// @param rootdir the tftp upload dir used
+/// @note the rootdir must exist and world writable!
 /// @return path to file received or
 /// @throw std::exception on error
-std::string receive_file(short port = 69);
+std::string receive_file(const char *rootdir = "/srv/tftp", short port = 69);
 
 } // namespace tftpd

@@ -13,7 +13,7 @@ int main(int argc, char *argv[])
         }
 
         short port = std::strtol(argv[1], nullptr, 10);
-        auto filename = tftpd::receive_file(port);
+        auto filename = tftpd::receive_file("/tmp/tftpboot", port);
         if (!filename.empty()) {
             std::cout << "Successfully received: " << filename << "\n\n";
         }
