@@ -41,10 +41,9 @@ char tftp_rcsid[] = "$Id: tftp.c,v 1.10 2000/07/22 19:06:29 dholland Exp $";
 /*
  * TFTP User Program -- Protocol Machines
  */
-#include "../version.h"
 #include "tftpsubs.h"
+#include "../version.h"
 
-#include <arpa/tftp.h>
 #include <errno.h>
 #include <netinet/in.h>
 #include <setjmp.h>
@@ -69,7 +68,7 @@ extern int rexmtval;
 extern int maxtimeout;
 extern sigjmp_buf toplevel;
 void sendfile(int fd, char *name, char *modestr);
-//XXX void recvfile(int fd, char *name, char *modestr);
+void recvfile(int fd, char *name, char *modestr);
 
 static struct sockaddr_storage from; /* most recent remote address */
 static socklen_t fromlen;
@@ -210,7 +209,6 @@ abort:
     initsock(from.ss_family); /* Synchronize address family. */
 }
 
-#if 0
 /*
  * Receive a file.
  */
@@ -315,7 +313,6 @@ abort:
         printstats("Received", amount);
     initsock(from.ss_family); /* Synchronize address family. */
 }
-#endif
 
 int makerequest(int request, char *name, struct tftphdr *tp, char *mode)
 {

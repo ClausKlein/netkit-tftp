@@ -29,13 +29,17 @@ add_library(tftpd async_tftpd_server.cpp async_tftpd_server.hpp
             tftpd_utils.cpp tftpsubs.cpp tftp/tftpsubs.h
 )
 target_link_libraries(tftpd INTERFACE Threads::Threads)
+target_include_directories(tftpd INTERFACE
+  $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+  $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+)
 
 #---------------------------------------------------------------------------------------
-# Install tftpd-targets
+# Install and export tftpd-targets
 #---------------------------------------------------------------------------------------
 set(ConfigPackageLocation ${CMAKE_INSTALL_LIBDIR}/cmake/tftpd)
 install(TARGETS tftpd EXPORT tftpd-targets DESTINATION "${CMAKE_INSTALL_LIBDIR}")
-install(FILES async_tftpd_server.hpp EXPORT tftpd-targets DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}")
+install(FILES async_tftpd_server.hpp DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}")
 install(FILES tftpd-config.cmake DESTINATION ${ConfigPackageLocation})
 install(EXPORT tftpd-targets DESTINATION ${ConfigPackageLocation} NAMESPACE tftpd::)
 
