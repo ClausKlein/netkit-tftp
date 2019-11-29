@@ -45,12 +45,12 @@ char main_rcsid[] = "$Id: main.c,v 1.15 2000/07/22 19:06:29 dholland Exp $";
 /*
  * TFTP User Program -- Command Interface.
  */
+#include "tftpsubs.h" /* for mysignal() */
+
 #include <netinet/in.h>
 #include <sys/file.h>
 #include <sys/socket.h>
 #include <sys/types.h>
-/* #include <netinet/ip.h> <--- unused? */
-#include "tftpsubs.h" /* for mysignal() */
 
 #include <arpa/inet.h>
 #include <ctype.h>
@@ -63,7 +63,7 @@ char main_rcsid[] = "$Id: main.c,v 1.15 2000/07/22 19:06:29 dholland Exp $";
 #include <string.h>
 #include <unistd.h>
 
-#define TIMEOUT 5 /* secs between rexmt's */
+#define TIMEOUT 3 /* secs between rexmt's */
 
 struct sockaddr_storage s_inn;
 socklen_t s_inn_len;

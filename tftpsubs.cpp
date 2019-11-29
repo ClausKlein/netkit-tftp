@@ -49,22 +49,15 @@
  */
 #include "tftp/tftpsubs.h"
 
-#include <arpa/tftp.h>
+#include <csignal>
+#include <cstdio>
+#include <cstring>
 #include <netinet/in.h>
-#include <signal.h>
-#include <stdio.h>
-#include <string.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <sys/types.h>
+#include <syslog.h>
 #include <unistd.h>
-
-#ifndef FIONREAD
-#    if defined(__sun__) && defined(__svr4__)
-#        include <stropts.h>
-#        define FIONREAD I_NREAD
-#    endif /* slowaris */
-#endif     /* FIONREAD */
 
 struct bf
 {
@@ -84,26 +77,26 @@ static int current; /* index of buffer in use */
 bool newline = false; /* fillbuf: in middle of newline expansion */
 int prevchar = -1;    /* putbuf: previous char (cr check) */
 
-// void read_ahead(FILE *file, bool convert /* if true, convert to ascii */);
-// int write_behind(FILE *file, bool convert);
-struct tftphdr *rw_init(int x);
-
-struct tftphdr *w_init(void) { return rw_init(0); } /* write-behind */
-struct tftphdr *r_init(void) { return rw_init(1); } /* read-ahead */
-
-struct tftphdr *rw_init(int x) /* init for either read-ahead or write-behind */
-{                              /* zero for write-behind, one for read-head */
-    newline = false;           /* init crlf flag */
+/*
+ * init for either read-ahead or write-behind
+ * zero for write-behind, one for read-head
+ */
+struct tftphdr *rw_init(int x)
+{
+    newline = false; /* init crlf flag */
     prevchar = -1;
     bfs[0].counter = BF_ALLOC; /* pass out the first buffer */
     current = 0;
     bfs[1].counter = BF_FREE;
     nextone = x; /* ahead or behind? */
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-cstyle-cast)
     return (struct tftphdr *)bfs[0].buf;
 }
 
-/* Have emptied current buffer by sending to net and getting ack.
-   Free it and return next buffer filled with data.
+#if 0
+/*
+ * Have emptied current buffer by sending to net and getting ack.
+ * Free it and return next buffer filled with data.
  */
 int readit(FILE *file, struct tftphdr **dpp,
            bool convert /* if true, convert to ascii */)
@@ -171,6 +164,7 @@ void read_ahead(FILE *file, bool convert /* if true, convert to ascii */)
     }
     b->counter = (int)(p - dp->th_data);
 }
+#endif
 
 /* Update count associated with the buffer, get new buffer
    from the queue.  Calls write_behind only if next buffer not
@@ -181,9 +175,10 @@ int writeit(FILE *file, struct tftphdr **dpp, int ct, bool convert)
     bfs[current].counter = ct;             /* set size of data to write */
     current = !current;                    /* switch to other buffer */
     if (bfs[current].counter != BF_FREE) { /* if not free */
-        write_behind(file, convert);       /* flush it */
+        (void)write_behind(file, convert); /* flush it */
     }
     bfs[current].counter = BF_ALLOC; /* mark as alloc'd */
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-cstyle-cast)
     *dpp = (struct tftphdr *)bfs[current].buf;
     return ct; /* this is a lie of course */
 }
@@ -194,13 +189,10 @@ int writeit(FILE *file, struct tftphdr **dpp, int ct, bool convert)
  * Note spec is undefined if we get CR as last byte of file or a
  * CR followed by anything else.  In this case we leave it alone.
  */
-int write_behind(FILE *file, bool convert)
+int write_behind(FILE *file, bool /*convert*/)
 {
     char *buf;
     int count;
-    int ct;
-    char *p;
-    int c; /* current character */
     struct bf *b;
     struct tftphdr *dp;
 
@@ -211,80 +203,41 @@ int write_behind(FILE *file, bool convert)
 
     count = b->counter;   /* remember byte count */
     b->counter = BF_FREE; /* reset flag */
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-cstyle-cast)
     dp = (struct tftphdr *)b->buf;
     nextone = !nextone; /* incr for next time */
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
     buf = dp->th_data;
 
     if (count <= 0) {
-        return -1; /* nak logic? */
+        return -1; /* TBD: no nak logic! CK */
     }
 
+#ifndef USE_CONVERT
+    return write(fileno(file), buf, count);
+#else
     if (!convert) {
         return write(fileno(file), buf, count);
     }
 
-    p = buf;
-    ct = count;
+    char *p = buf;
+    int ct = count;
     while ((ct--) != 0) {           /* loop over the buffer */
+        int c;                      /* current character */
         c = *p++;                   /* pick up a character */
         if (prevchar == '\r') {     /* if prev char was cr */
             if (c == '\n') {        /* if have cr,lf then just */
                 fseek(file, -1, 1); /* smash lf on top of the cr */
             } else if (c == '\0') { /* if have cr,nul then */
-                // NOLINTNEXTLINE(cppcoreguidelines-avoid-goto)
-                goto skipit; /* just skip over the putc */
-                             /* else just fall through and allow it */
+                goto skipit;        /* just skip over the putc */
+                                    /* else just fall through and allow it */
             }
         }
         putc(c, file);
     skipit:
         prevchar = c;
     }
+
     return count;
-}
-
-#if 0
-/* When an error has occurred, it is possible that the two sides
- * are out of synch.  Ie: that what I think is the other side's
- * response to packet N is really their response to packet N-1.
- *
- * So, to try to prevent that, we flush all the input queued up
- * for us on the network connection on our host.
- *
- * We return the number of packets we flushed (mostly for reporting
- * when trace is active).
- */
-void synchnet(int f /* socket to flush */, bool trace)
-{
-    int i, j = 0;
-    char rbuf[PKTSIZE];
-    struct sockaddr_storage from;
-    socklen_t fromlen;
-
-    while (true) {
-        (void)ioctl(f, FIONREAD, &i);
-        if (i != 0) {
-            j++;
-            fromlen = sizeof from;
-            (void)recvfrom(f, rbuf, sizeof(rbuf), 0, (struct sockaddr *)&from,
-                           &fromlen);
-        } else {
-            if ((j != 0) && trace) {
-                printf("discarded %d packets\n", j);
-            }
-            return;
-        }
-    }
-}
-
-/*
- * Like signal(), but with well-defined semantics.
- */
-void mysignal(int sig, void (*handler)(int))
-{
-    struct sigaction sa;
-    memset(&sa, 0, sizeof(sa));
-    sa.sa_handler = handler;
-    sigaction(sig, &sa, NULL);
-}
 #endif
+}

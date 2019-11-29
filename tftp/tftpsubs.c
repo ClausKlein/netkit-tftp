@@ -47,7 +47,8 @@ char subs_rcsid[] = "$Id: tftpsubs.c,v 1.8 2000/07/22 19:06:29 dholland Exp $";
                         Jim Guyton 10/85
  */
 
-#include <arpa/tftp.h>
+#include "tftpsubs.h"
+
 #include <netinet/in.h>
 #include <signal.h>
 #include <stdio.h>
@@ -63,8 +64,6 @@ char subs_rcsid[] = "$Id: tftpsubs.c,v 1.8 2000/07/22 19:06:29 dholland Exp $";
 #        define FIONREAD I_NREAD
 #    endif /* slowaris */
 #endif     /* FIONREAD */
-
-#include "tftpsubs.h"
 
 struct bf
 {
@@ -84,15 +83,16 @@ static int current; /* index of buffer in use */
 int newline = 0;   /* fillbuf: in middle of newline expansion */
 int prevchar = -1; /* putbuf: previous char (cr check) */
 
-void read_ahead(FILE *file, int convert /* if true, convert to ascii */);
-int write_behind(FILE *file, int convert);
-struct tftphdr *rw_init(int);
+// void read_ahead(FILE *file, int convert /* if true, convert to ascii */);
+// int write_behind(FILE *file, int convert);
+// struct tftphdr *rw_init(int);
+// struct tftphdr *w_init(void) { return rw_init(0); } /* write-behind */
+// struct tftphdr *r_init(void) { return rw_init(1); } /* read-ahead */
 
-struct tftphdr *w_init(void) { return rw_init(0); } /* write-behind */
-struct tftphdr *r_init(void) { return rw_init(1); } /* read-ahead */
-
-struct tftphdr *rw_init(int x) /* init for either read-ahead or write-behind */
-{                              /* zero for write-behind, one for read-head */
+/* init for either read-ahead or write-behind */
+/* zero for write-behind, one for read-head */
+struct tftphdr *rw_init(int x)
+{
     newline = 0;               /* init crlf flag */
     prevchar = -1;
     bfs[0].counter = BF_ALLOC; /* pass out the first buffer */
@@ -243,7 +243,6 @@ int write_behind(FILE *file, int convert)
  * We return the number of packets we flushed (mostly for reporting
  * when trace is active).
  */
-
 void synchnet(int f /* socket to flush */, int trace)
 {
     int i, j = 0;

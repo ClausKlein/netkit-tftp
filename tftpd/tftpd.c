@@ -45,6 +45,9 @@ char rcsid[] = "$Id: tftpd.c,v 1.20 2000/07/29 18:37:21 dholland Exp $";
  *
  * This version includes many modifications by Jim Guyton <guyton@rand-unix>
  */
+#include "tftpsubs.h"
+#include "../version.h"
+
 #include <fcntl.h>
 #include <netinet/in.h>
 #include <signal.h>
@@ -52,11 +55,7 @@ char rcsid[] = "$Id: tftpd.c,v 1.20 2000/07/29 18:37:21 dholland Exp $";
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-/* #include <netinet/ip.h> <--- unused? */
-#include "../version.h"
-#include "tftpsubs.h"
 
-#include <arpa/tftp.h>
 #include <ctype.h>
 #include <errno.h>
 #include <grp.h>
@@ -69,7 +68,7 @@ char rcsid[] = "$Id: tftpd.c,v 1.20 2000/07/29 18:37:21 dholland Exp $";
 #include <syslog.h>
 #include <unistd.h>
 
-#define TIMEOUT 5
+#define TIMEOUT 3
 
 struct formats;
 static void tftp(struct tftphdr *tp, int size);
