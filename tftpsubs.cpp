@@ -166,21 +166,22 @@ void read_ahead(FILE *file, bool convert /* if true, convert to ascii */)
 }
 #endif
 
-/* Update count associated with the buffer, get new buffer
-   from the queue.  Calls write_behind only if next buffer not
-   available.
+/*
+ * Update count associated with the buffer, get new buffer
+ * from the queue.  Calls write_behind only if next buffer not
+ * available.
  */
-int writeit(FILE *file, struct tftphdr **dpp, int ct, bool convert)
+int writeit(FILE *file, struct tftphdr **dpp, int count, bool convert)
 {
-    bfs[current].counter = ct;             /* set size of data to write */
-    current = !current;                    /* switch to other buffer */
-    if (bfs[current].counter != BF_FREE) { /* if not free */
-        (void)write_behind(file, convert); /* flush it */
+    bfs[current].counter = count;            /* set size of data to write */
+    current = !current;                      /* switch to other buffer */
+    if (bfs[current].counter != BF_FREE) {   /* if not free */
+        count = write_behind(file, convert); /* flush it */
     }
     bfs[current].counter = BF_ALLOC; /* mark as alloc'd */
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-cstyle-cast)
     *dpp = (struct tftphdr *)bfs[current].buf;
-    return ct; /* this is a lie of course */
+    return count; /* this is a lie of course */
 }
 
 /*
@@ -198,7 +199,8 @@ int write_behind(FILE *file, bool /*convert*/)
 
     b = &bfs[nextone];
     if (b->counter < -1) { /* anything to flush? */
-        return 0;          /* just nop if nothing to do */
+        syslog(LOG_INFO, "tftpd: write() nothing to flush!\n");
+        return 0; /* just nop if nothing to do */
     }
 
     count = b->counter;   /* remember byte count */
@@ -209,7 +211,8 @@ int write_behind(FILE *file, bool /*convert*/)
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
     buf = dp->th_data;
 
-    if (count <= 0) {
+    if (count < 0) {
+        syslog(LOG_ERR, "tftpd: write() invalid buffer count!\n");
         return -1; /* TBD: no nak logic! CK */
     }
 

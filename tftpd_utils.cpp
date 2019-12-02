@@ -61,7 +61,7 @@ char copyright[] = "@(#) Copyright (c) 1983 Regents of the University of Califor
 #include <vector>
 
 namespace tftpd {
-extern const char *rootdir;  // the only tftp root dir used!
+extern const char *rootdir; // the only tftp root dir used!
 
 int validate_access(std::string &filename, int mode, FILE *&file);
 int tftp(const std::vector<char> &rxbuffer, FILE *&file, std::string &file_path);

@@ -2,9 +2,9 @@
 
 #include "tftpd.hpp"
 
-const char *tftpd::rootdir = "/tmp/tftpboot";  // the only tftp root dir used!
+const char *tftpd::rootdir = "/tmp/tftpboot"; // the only tftp root dir used!
 
-std::string tftpd::receive_file(const char * rootdir, short port)
+std::string tftpd::receive_file(const char *rootdir, short port)
 {
     asio::io_context io_context;
     tftpd::rootdir = rootdir;

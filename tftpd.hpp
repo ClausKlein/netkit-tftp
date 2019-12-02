@@ -34,7 +34,7 @@
 #include <vector>
 
 namespace tftpd {
-extern const char *rootdir;  // the only tftp root dir used!
+extern const char *rootdir; // the only tftp root dir used!
 
 int validate_access(std::string &filename, int mode, FILE *&file);
 int tftp(const std::vector<char> &rxbuffer, FILE *&file, std::string &file_path);
@@ -165,12 +165,14 @@ protected:
         for (pe = errmsgs; pe->e_code >= 0; pe++) {
             if (pe->e_code == error) {
                 err_msg = pe->e_msg;
+                syslog(LOG_ERR, "tftpd: send_error(%d): %s\n", error, err_msg.c_str());
                 break;
             }
         }
 
         if (pe->e_code < 0) {
             err_msg = strerror(error - ERRNO_OFFSET);
+            syslog(LOG_ERR, "tftpd: send_error(%d): %s\n", (error - ERRNO_OFFSET), err_msg.c_str());
             // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
             tp->th_code = htons((u_short)EUNDEF); /* set 'eundef(0)' errorcode */
         }
@@ -270,7 +272,6 @@ public:
                                        } else {
                                            int err = check_and_write_block(bytes_recvd);
                                            if (err != 0) {
-                                               syslog(LOG_ERR, "tftpd: check data: %s\n", strerror(err));
                                                send_error(err);
                                            }
                                        }
@@ -324,6 +325,7 @@ public:
         if (size != length) { /* ahem */
             int error = ENOSPACE;
             if (size < 0) {
+                syslog(LOG_ERR, "tftpd: writeit() failed! %s\n", strerror(errno));
                 error = (errno + ERRNO_OFFSET);
             }
             return (error);
@@ -336,10 +338,15 @@ public:
 
         // =======================================================
         // write the final data segment
-        (void)write_behind(file_guard_.get(), false);
-        std::string old_path(file_path_ + ".upload");
-        (void)rename(old_path.c_str(), file_path_.c_str());
-        syslog(LOG_NOTICE, "tftpd: successfully received file: %s\n", file_path_.c_str());
+        size = write_behind(file_guard_.get(), false);
+        if (size >= 0) {
+            std::string old_path(file_path_ + ".upload");
+            (void)rename(old_path.c_str(), file_path_.c_str());
+            syslog(LOG_NOTICE, "tftpd: successfully received file: %s\n", file_path_.c_str());
+        } else {
+            syslog(LOG_ERR, "tftpd: write_behind() failed! %s\n", strerror(errno));
+            return (ENOSPACE);
+        }
         // =======================================================
 
         send_last_ack();

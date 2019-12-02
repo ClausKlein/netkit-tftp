@@ -4,6 +4,7 @@ TFTPDIR=/tmp/tftpboot
 
 cd ${PWD}
 
+sudo umount -t tmpfs ${TFTPDIR} || echo "OK"
 rm -rf ${TFTPDIR}
 
 ##############################################
@@ -38,6 +39,13 @@ sleep 1
 ${TFTP} -m binary -c get none.dat && exit 1
 wait
 
+
+##############################################
+sudo mount -t tmpfs -o size=160K,mode=0777 tmpfs ${TFTPDIR}
+df -h ${TFTPDIR}
+##############################################
+
+
 ##############################################
 # NOTE: we start server at bg
 # one upload must fail
@@ -53,6 +61,7 @@ test -f ${TFTPDIR}/second.dat && diff test16k.dat ${TFTPDIR}/second.dat
 ##############################################
 # download must fail
 # not 1 client only!
+touch ${TFTPDIR}/zero.dat
 chmod 666 ${TFTPDIR}/zero.dat
 bin/tftpd_test 1234 &
 sleep 1
@@ -84,11 +93,12 @@ ${TFTP} -m binary -c put test1block.dat
 diff ${TFTPDIR}/test1block.dat test1block.dat
 wait
 ##############################################
-## upload large file
+## upload large file > 135K:
+#XXX must fail, disk full!
 bin/tftpd_test 1234 &
 sleep 1
-${TFTP} -m binary -c put bin/tftpd_test tftpd_test
-diff ${TFTPDIR}/tftpd_test bin/tftpd_test
+${TFTP} -m binary -c put bin/tftpd_test tftpd_test && exit 1
+#XXX diff ${TFTPDIR}/tftpd_test bin/tftpd_test
 wait
 ##############################################
 ## absolut path upload must fail
@@ -130,7 +140,7 @@ ${TFTP} -m binary -c put rules.ninja ./tftp/rules.ninja && exit 1
 wait
 
 ##############################################
-echo "test idle timeout (15 seconds) ..."
+echo "test idle timeout (10 seconds) ..."
 # port must be free, no error expected
 bin/tftpd_test 1234
 
