@@ -35,6 +35,7 @@
 
 namespace tftpd {
 extern const char *rootdir; // the only tftp root dir used!
+extern std::function<void(size_t)> callback;
 
 int validate_access(std::string &filename, int mode, FILE *&file);
 int tftp(const std::vector<char> &rxbuffer, FILE *&file, std::string &file_path);
@@ -300,6 +301,11 @@ public:
             if (dp->th_opcode == DATA) {
                 // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
                 if (dp->th_block == block) {
+                    if (callback != nullptr) {
+                        if ((block % 100) == 1) {
+                            callback(block / 100);
+                        }
+                    }
                     break; /* normal */
                 }
 

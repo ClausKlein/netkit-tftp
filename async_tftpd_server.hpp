@@ -1,5 +1,6 @@
 #pragma once
 
+#include <functional>
 #include <string>
 
 // NOTE: prevent clang-tidy warings XXX #include <boost/current_function.hpp>
@@ -14,6 +15,7 @@ namespace tftpd {
 /// @note the rootdir must exist and world writable!
 /// @return path to file received or
 /// @throw std::exception on error
-std::string receive_file(const char *rootdir = "/srv/tftp", short port = 69);
+std::string receive_file(const char *rootdir = "/srv/tftp", short port = 69,
+                         std::function<void(size_t)> callback = nullptr);
 
 } // namespace tftpd
