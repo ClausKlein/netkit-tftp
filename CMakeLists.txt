@@ -25,7 +25,7 @@ add_subdirectory(tftpd)
 # add_executable(async_udp_echo_server async_udp_echo_server.cpp)
 # target_link_libraries(async_udp_echo_server asio::standalone Threads::Threads)
 
-add_library(tftpd async_tftpd_server.cpp async_tftpd_server.hpp
+add_library(tftpd async_tftpd_server.cpp async_tftpd_server.hpp tftpd.hpp
             tftpd_utils.cpp tftpsubs.cpp tftp/tftpsubs.h
 )
 target_link_libraries(tftpd INTERFACE Threads::Threads)

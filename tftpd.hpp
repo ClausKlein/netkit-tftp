@@ -269,6 +269,7 @@ public:
                                    [this](std::error_code ec, std::size_t bytes_recvd) {
                                        if (ec) {
                                            syslog(LOG_ERR, "tftpd: read data: %s\n", ec.message().c_str());
+                                           receive_block();
                                        } else {
                                            int err = check_and_write_block(bytes_recvd);
                                            if (err != 0) {
