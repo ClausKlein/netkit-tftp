@@ -115,28 +115,6 @@ int tftp(const std::vector<char> &rxbuffer, FILE *&file, std::string &file_path,
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
     filename = cp = static_cast<const char *>(tp->th_stuff);
 
-#if 0
-    bool first = true;
-    do {
-        while (cp < rxbuffer.data() + rxbuffer.size()) {
-            if (*cp == '\0') {
-                break;
-            }
-            cp++;
-        }
-        if (*cp != '\0') {
-            syslog(LOG_WARNING, "tftpd: missing filename\n");
-            return (EBADOP);
-        }
-
-        if (first) {
-            mode = ++cp;
-            first = false;
-            continue;
-        }
-        break;
-    } while (true);
-#else
     u_short tp_opcode = ntohs(tp->th_opcode);
 
     const char *val = NULL;
@@ -178,8 +156,8 @@ int tftp(const std::vector<char> &rxbuffer, FILE *&file, std::string &file_path,
                 return EBADOP;
             }
 
-            // FIXME: call validate_access() to check file access and set
-            // tsize and tsize_ok flag
+            // TODO: call validate_access() to check file access and set
+            // tsize and tsize_ok flag in case of RRQ
 
             opt = ++cp;
         } else if (argn & 1) {
@@ -189,7 +167,6 @@ int tftp(const std::vector<char> &rxbuffer, FILE *&file, std::string &file_path,
             opt = ++cp;
         }
     }
-#endif
 
     if ((mode == nullptr) || (rxbuffer.back() != '\0')) {
         syslog(LOG_ERR, "tftpd: invalid option field!\n");
@@ -200,22 +177,6 @@ int tftp(const std::vector<char> &rxbuffer, FILE *&file, std::string &file_path,
         puts("Request has no options");
         optack.clear();
     }
-
-#if 0
-    std::string l_mode(mode);
-    boost::to_lower(l_mode);
-    struct formats *pf;
-    // NOLINTNEXTLINE
-    for (pf = formats; pf->f_mode != nullptr; pf++) {
-        if (l_mode == pf->f_mode) {
-            break;
-        }
-    }
-    if (pf->f_mode == nullptr) {
-        syslog(LOG_WARNING, "tftpd: wrong mode\n");
-        return (EBADOP);
-    }
-#endif
 
     file_path = filename;
     int ecode = validate_access(file_path, tp->th_opcode, file);

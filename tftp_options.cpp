@@ -51,28 +51,27 @@
 
 constexpr uintmax_t MAX_SEGSIZE{65464}; // RFC2348
 constexpr uintmax_t min_blksize_rfc{8}; // TBD: after RFC2348! CK
-constexpr uintmax_t min_blksize{512};
+constexpr uintmax_t default_blksize{512};
 constexpr uintmax_t max_blksize{MAX_SEGSIZE};
 constexpr uintmax_t max_windowsize{64};
 constexpr uintmax_t max_timeout{255}; // seconds
 constexpr uintmax_t MS_1K{1000};      // default timeout
 
-static uint16_t rollover_val = 0;
-static uintmax_t windowsize = 1;
+// XXX static uint16_t rollover_val = 0;
+// XXX static uintmax_t windowsize = 1;
 static constexpr bool tsize_ok{true}; // only octet mode supported!
-static uintmax_t g_timeout = MS_1K;   /* ms */
+static uintmax_t g_timeout = MS_1K;   // NOTE: ms! CK
 
 namespace tftpd {
-char pktbuf[PKTSIZE]; // TODO: prevent gloabl vars! CK
-uintmax_t segsize;
-off_t tsize;
+uintmax_t segsize{default_blksize};
+off_t tsize{0};
 
 static int set_blksize(uintmax_t *);
 static int set_blksize2(uintmax_t *);
 static int set_tsize(uintmax_t *);
 static int set_timeout(uintmax_t *);
 static int set_utimeout(uintmax_t *);
-static int set_rollover(uintmax_t *);
+// XXX static int set_rollover(uintmax_t *);
 // XXX static int set_windowsize(uintmax_t *);
 
 struct options
@@ -86,7 +85,7 @@ static const struct options options[] = {{"blksize", set_blksize},
                                          {"tsize", set_tsize},
                                          {"timeout", set_timeout},
                                          {"utimeout", set_utimeout},
-                                         {"rollover", set_rollover},
+                                         // TBD: {"rollover", set_rollover},
                                          // TBD: not yet! CK {"windowsize", set_windowsize},
                                          {NULL, NULL}};
 
@@ -150,10 +149,9 @@ static int set_blksize2(uintmax_t *vp)
     return 1;
 }
 
-/*
+/***
  * Set the block number rollover value
  * NOLINTNEXTLINE(readability-non-const-parameter)
- */
 static int set_rollover(uintmax_t *vp) // NOLINT
 {
     uintmax_t ro = *vp;
@@ -165,6 +163,7 @@ static int set_rollover(uintmax_t *vp) // NOLINT
     rollover_val = (uint16_t)ro;
     return 1;
 }
+ ***/
 
 /*
  * Return a file size (c.f. RFC2349)
@@ -274,14 +273,6 @@ void do_opt(const char *opt, const char *val, char **ap)
                 optlen = strlen(opt);
                 std::string retbuf = std::to_string(v);
                 retlen = retbuf.size();
-
-#if 0
-                // NOTE: it is asserted that p == ap is a pointer to pktbuf! CK
-                if (p + optlen + retlen + 2 >= pktbuf + sizeof(pktbuf)) {
-                    nak(EOPTNEG, "Insufficient space for options");
-                    // FIXME exit(1);
-                }
-#endif
 
                 memcpy(p, opt, optlen + 1);
                 p += optlen + 1;
