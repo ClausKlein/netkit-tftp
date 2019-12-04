@@ -34,7 +34,4 @@ int writeit(FILE *file, struct tftphdr **dpp, int count, _Bool convert);
 void read_ahead(FILE *file, _Bool convert /* if true, convert to ascii */);
 int write_behind(FILE *file, _Bool convert);
 
-extern char pktbuf[PKTSIZE];
-void do_opt(const char *, const char *, char **);
-
 void mysignal(int sig, void (*handler)(int));

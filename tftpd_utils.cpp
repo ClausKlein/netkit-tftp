@@ -63,8 +63,9 @@ char copyright[] = "@(#) Copyright (c) 1983 Regents of the University of Califor
 namespace tftpd {
 extern const char *rootdir; // the only tftp root dir used!
 
+void do_opt(const char *, const char *, char **);
 int validate_access(std::string &filename, int mode, FILE *&file);
-int tftp(const std::vector<char> &rxbuffer, FILE *&file, std::string &file_path);
+int tftp(const std::vector<char> &rxbuffer, FILE *&file, std::string &file_path, std::vector<char> &optack);
 
 /// the only directory used by the tftpd
 ///
@@ -95,9 +96,11 @@ struct formats
 /*
  * Handle initial connection protocol.
  */
-int tftp(const std::vector<char> &rxbuffer, FILE *&file, std::string &file_path)
+int tftp(const std::vector<char> &rxbuffer, FILE *&file, std::string &file_path, std::vector<char> &optack)
 {
     syslog(LOG_NOTICE, "%s(%lu)\n", BOOST_CURRENT_FUNCTION, rxbuffer.size());
+
+    assert(rxbuffer.size() >= TFTP_HEADER);
 
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-cstyle-cast)
     struct tftphdr *tp = (struct tftphdr *)(rxbuffer.data());
@@ -138,6 +141,8 @@ int tftp(const std::vector<char> &rxbuffer, FILE *&file, std::string &file_path)
 
     const char *val = NULL;
     const char *opt = NULL;
+    optack.resize(PKTSIZE);
+    char *pktbuf = optack.data();
     char *ap = pktbuf + 2;
     ((struct tftphdr *)pktbuf)->th_opcode = htons(OACK);
 
@@ -189,6 +194,11 @@ int tftp(const std::vector<char> &rxbuffer, FILE *&file, std::string &file_path)
     if ((mode == nullptr) || (rxbuffer.back() != '\0')) {
         syslog(LOG_ERR, "tftpd: invalid option field!\n");
         return (EBADID);
+    }
+
+    if (argn <= 2) {
+        puts("Request has no options");
+        optack.clear();
     }
 
 #if 0

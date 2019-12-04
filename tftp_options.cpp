@@ -49,22 +49,23 @@
 #include <syslog.h>
 #include <unistd.h>
 
-constexpr uintmax_t MAX_SEGSIZE{65464};
-constexpr uintmax_t min_blksize2{8};
-constexpr uintmax_t min_blksize{1 << min_blksize2};
+constexpr uintmax_t MAX_SEGSIZE{65464}; // RFC2348
+constexpr uintmax_t min_blksize_rfc{8}; // TBD: after RFC2348! CK
+constexpr uintmax_t min_blksize{512};
 constexpr uintmax_t max_blksize{MAX_SEGSIZE};
 constexpr uintmax_t max_windowsize{64};
 constexpr uintmax_t max_timeout{255}; // seconds
 constexpr uintmax_t MS_1K{1000};      // default timeout
 
-uint16_t rollover_val = 0;
-uintmax_t windowsize = 1;
+static uint16_t rollover_val = 0;
+static uintmax_t windowsize = 1;
+static constexpr bool tsize_ok{true}; // only octet mode supported!
+static uintmax_t g_timeout = MS_1K;   /* ms */
+
+namespace tftpd {
+char pktbuf[PKTSIZE]; // TODO: prevent gloabl vars! CK
 uintmax_t segsize;
 off_t tsize;
-constexpr bool tsize_ok{true}; // only octet mode supported!
-uintmax_t g_timeout = MS_1K;   /* ms */
-
-char pktbuf[PKTSIZE]; // TODO: prevent gloabl vars! CK
 
 static int set_blksize(uintmax_t *);
 static int set_blksize2(uintmax_t *);
@@ -72,7 +73,7 @@ static int set_tsize(uintmax_t *);
 static int set_timeout(uintmax_t *);
 static int set_utimeout(uintmax_t *);
 static int set_rollover(uintmax_t *);
-//XXX static int set_windowsize(uintmax_t *);
+// XXX static int set_windowsize(uintmax_t *);
 
 struct options
 {
@@ -89,7 +90,7 @@ static const struct options options[] = {{"blksize", set_blksize},
                                          // TBD: not yet! CK {"windowsize", set_windowsize},
                                          {NULL, NULL}};
 
-static int blksize_set;
+static bool blksize_set;
 
 /*
  * Set a non-standard block size (c.f. RFC2348)
@@ -102,7 +103,7 @@ static int set_blksize(uintmax_t *vp)
         return 0;
     }
 
-    if (sz < min_blksize2) {
+    if (sz < min_blksize_rfc) {
         return 0;
     }
 
@@ -111,7 +112,7 @@ static int set_blksize(uintmax_t *vp)
     }
 
     *vp = segsize = sz;
-    blksize_set = 1;
+    blksize_set = true;
     return 1;
 }
 
@@ -126,26 +127,26 @@ static int set_blksize2(uintmax_t *vp)
         return 0;
     }
 
-    if (sz < min_blksize2) {
+    if (sz < min_blksize_rfc) {
         return (0);
     }
 
     if (sz > max_blksize) {
         sz = max_blksize;
-    } else
-
+    } else {
         /* Convert to a power of two */
         if (sz & (sz - 1)) {
-        unsigned int sz1 = 1;
-        /* Not a power of two - need to convert */
-        while (sz >>= 1) {
-            sz1 <<= 1;
+            unsigned int sz1 = 1;
+            /* Not a power of two - need to convert */
+            while (sz >>= 1) {
+                sz1 <<= 1;
+            }
+            sz = sz1;
         }
-        sz = sz1;
     }
 
     *vp = segsize = sz;
-    blksize_set = 1;
+    blksize_set = true;
     return 1;
 }
 
@@ -253,7 +254,7 @@ void do_opt(const char *opt, const char *val, char **ap)
     uintmax_t v;
 
     /* Global option-parsing variables initialization */
-    blksize_set = 0;
+    blksize_set = false;
 
     if (!*opt || !*val) {
         return;
@@ -295,30 +296,4 @@ void do_opt(const char *opt, const char *val, char **ap)
 
     *ap = p;
 }
-
-#if 0
-int main()
-{
-    const char msg[min_blksize] = {"\0\1testfile.dat\0octet\0"
-                                   "blksize\0"
-                                   "1047\0"
-                                   "blksize2\0"
-                                   "123024\0"
-                                   "rollover\0"
-                                   "1\0"
-                                   "timeout\0"
-                                   "33333\0"
-                                   "utimeout\0"
-                                   "1\0"
-                                   "tsize\0"
-                                   "123456\0"};
-    const char missing[] = {"\0\1testfile.dat"};
-    const char unknown[] = {"\0\1testfile.dat\0octetmode"};
-    tftp((struct tftphdr *)msg, sizeof(msg));
-    printf("%s %s %lu %lu %lld %d\n", origfilename, mode, g_timeout, segsize, tsize, rollover_val);
-
-    tftp((struct tftphdr *)missing, sizeof(missing));
-    tftp((struct tftphdr *)missing, sizeof(missing) - 2);
-    return tftp((struct tftphdr *)unknown, sizeof(unknown));
-}
-#endif
+} // namespace tftpd

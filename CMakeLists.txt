@@ -48,6 +48,10 @@ install(EXPORT tftpd-targets DESTINATION ${ConfigPackageLocation} NAMESPACE tftp
 #---------------------------------------------------------------------------------------
 enable_testing()
 
+add_executable(option_test option_test.cpp async_tftpd_server.hpp)
+target_link_libraries(option_test tftpd asio::standalone)
+add_test(NAME option_test COMMAND option_test)
+
 add_executable(tftpd_test tftpd_test.cpp async_tftpd_server.hpp)
 target_link_libraries(tftpd_test tftpd asio::standalone)
 add_test(
