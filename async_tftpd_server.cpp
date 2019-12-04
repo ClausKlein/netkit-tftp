@@ -9,7 +9,7 @@ std::string tftpd::receive_file(const char *rootdir, short port, std::function<v
 {
     asio::io_context io_context;
     tftpd::rootdir = rootdir;
-    tftpd::callback = callback;
+    tftpd::callback = std::move(callback);
     tftpd::receiver s(io_context, port);
 
     io_context.run(); // the server runs here ...

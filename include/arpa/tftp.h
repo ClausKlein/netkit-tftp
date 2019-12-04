@@ -10,10 +10,6 @@
  * 2. Redistributions in binary form must reproduce the above copyright
  *    notice, this list of conditions and the following disclaimer in the
  *    documentation and/or other materials provided with the distribution.
- * 3. All advertising materials mentioning features or use of this software
- *    must display the following acknowledgement:
- *	This product includes software developed by the University of
- *	California, Berkeley and its contributors.
  * 4. Neither the name of the University nor the names of its contributors
  *    may be used to endorse or promote products derived from this software
  *    without specific prior written permission.
@@ -30,56 +26,57 @@
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
  *
- *	From: @(#)tftp.h	8.1 (Berkeley) 6/2/93
- *      $Id: tftp.h,v 1.1 2000/07/22 18:59:20 dholland Exp $
- *
- * (Fixed for netkit to have well-defined field sizes)
+ *	@(#)tftp.h	8.1 (Berkeley) 6/2/93
  */
 
 #ifndef _ARPA_TFTP_H
-#define _ARPA_TFTP_H 1
+#define	_ARPA_TFTP_H 1
 
 /*
  * Trivial File Transfer Protocol (IEN-133)
  */
-#define SEGSIZE 512 /* data segment size */
+#define	SEGSIZE		512		/* data segment size */
 
 /*
  * Packet types.
  */
-#define RRQ 01   /* read request */
-#define WRQ 02   /* write request */
-#define DATA 03  /* data packet */
-#define ACK 04   /* acknowledgement */
-#define ERROR 05 /* error code */
+#define	RRQ	01				/* read request */
+#define	WRQ	02				/* write request */
+#define	DATA	03				/* data packet */
+#define	ACK	04				/* acknowledgement */
+#define	ERROR	05				/* error code */
 
-struct tftphdr
-{
-    u_int16_t th_opcode; /* packet type */
-    union
-    {
-        u_int16_t tu_block; /* block # */
-        u_int16_t tu_code;  /* error code */
-        char tu_stuff[1];   /* request packet stuff */
-    } th_u;
-    char th_data[1]; /* data or error string */
-};
+struct	tftphdr {
+	short	th_opcode;			/* packet type */
+	union {
+		char	tu_padding[3];		/* sizeof() compat */
+		struct {
+			union {
+				unsigned short	tu_block;	/* block # */
+				short	tu_code;		/* error code */
+			} __attribute__ ((__packed__)) th_u3;
+			char tu_data[0];	/* data or error string */
+		} __attribute__ ((__packed__)) th_u2;
+		char	tu_stuff[0];		/* request packet stuff */
+	} __attribute__ ((__packed__)) th_u1;
+} __attribute__ ((__packed__));
 
-#define th_block th_u.tu_block
-#define th_code th_u.tu_code
-#define th_stuff th_u.tu_stuff
-#define th_msg th_data
+#define	th_block	th_u1.th_u2.th_u3.tu_block
+#define	th_code		th_u1.th_u2.th_u3.tu_code
+#define	th_stuff	th_u1.tu_stuff
+#define	th_data		th_u1.th_u2.tu_data
+#define	th_msg		th_u1.th_u2.tu_data
 
 /*
  * Error codes.
  */
-#define EUNDEF 0    /* not defined */
-#define ENOTFOUND 1 /* file not found */
-#define EACCESS 2   /* access violation */
-#define ENOSPACE 3  /* disk full or allocation exceeded */
-#define EBADOP 4    /* illegal TFTP operation */
-#define EBADID 5    /* unknown transfer ID */
-#define EEXISTS 6   /* file already exists */
-#define ENOUSER 7   /* no such user */
+#define	EUNDEF		0		/* not defined */
+#define	ENOTFOUND	1		/* file not found */
+#define	EACCESS		2		/* access violation */
+#define	ENOSPACE	3		/* disk full or allocation exceeded */
+#define	EBADOP		4		/* illegal TFTP operation */
+#define	EBADID		5		/* unknown transfer ID */
+#define	EEXISTS		6		/* file already exists */
+#define	ENOUSER		7		/* no such user */
 
 #endif /* arpa/tftp.h */

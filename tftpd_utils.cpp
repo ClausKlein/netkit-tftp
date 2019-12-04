@@ -84,9 +84,9 @@ constexpr bool allow_create{true};
 struct formats
 {
     const char *f_mode;
-    // int (*f_validate)(const char *, int);
-    // int (*f_send)(struct formats *);
-    // int (*f_recv)(struct formats *);
+    // XXX int (*f_validate)(const char *, int);
+    // XXX int (*f_send)(struct formats *);
+    // XXX int (*f_recv)(struct formats *);
     bool f_convert;
 } formats[] = { // XXX {"netascii", /* validate_access, sendfile, recvfile, */ true},
     {"octet", /* validate_access, sendfile, recvfile, */ false},
@@ -112,6 +112,7 @@ int tftp(const std::vector<char> &rxbuffer, FILE *&file, std::string &file_path)
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
     filename = cp = static_cast<const char *>(tp->th_stuff);
 
+#if 0
     bool first = true;
     do {
         while (cp < rxbuffer.data() + rxbuffer.size()) {
@@ -132,11 +133,65 @@ int tftp(const std::vector<char> &rxbuffer, FILE *&file, std::string &file_path)
         }
         break;
     } while (true);
+#else
+    u_short tp_opcode = ntohs(tp->th_opcode);
+
+    const char *val = NULL;
+    const char *opt = NULL;
+    char *ap = pktbuf + 2;
+    ((struct tftphdr *)pktbuf)->th_opcode = htons(OACK);
+
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
+    filename = cp = (char *)&(tp->th_stuff);
+    int argn = 0;
+    const struct formats *pf = NULL;
+    char *end = (char *)tp + rxbuffer.size();
+
+    while (cp < end && *cp) {
+        do {
+            cp++;
+        } while (cp < end && *cp);
+
+        if (*cp) {
+            puts("Request not null-terminated");
+            return EBADOP;
+        }
+
+        argn++;
+        if (argn == 1) {
+            mode = ++cp;
+        } else if (argn == 2) {
+            std::string l_mode(mode);
+            boost::to_lower(l_mode);
+            for (pf = formats; pf->f_mode; pf++) {
+                if (l_mode == pf->f_mode) {
+                    break;
+                }
+            }
+            if (!pf->f_mode) {
+                puts("Unknown mode");
+                return EBADOP;
+            }
+
+            // FIXME: call validate_access() to check file access and set
+            // tsize and tsize_ok flag
+
+            opt = ++cp;
+        } else if (argn & 1) {
+            val = ++cp; // odd arg is value
+        } else {
+            do_opt(opt, val, &ap);
+            opt = ++cp;
+        }
+    }
+#endif
+
     if ((mode == nullptr) || (rxbuffer.back() != '\0')) {
         syslog(LOG_ERR, "tftpd: invalid option field!\n");
         return (EBADID);
     }
 
+#if 0
     std::string l_mode(mode);
     boost::to_lower(l_mode);
     struct formats *pf;
@@ -150,6 +205,7 @@ int tftp(const std::vector<char> &rxbuffer, FILE *&file, std::string &file_path)
         syslog(LOG_WARNING, "tftpd: wrong mode\n");
         return (EBADOP);
     }
+#endif
 
     file_path = filename;
     int ecode = validate_access(file_path, tp->th_opcode, file);

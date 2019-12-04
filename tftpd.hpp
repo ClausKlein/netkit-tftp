@@ -48,15 +48,18 @@ struct errmsg
 {
     int e_code;
     const char *e_msg;
-} static const errmsgs[] = {{EUNDEF, "Undefined error code"},
-                            {ENOTFOUND, "File not found"},
-                            {EACCESS, "Access violation"},
-                            {ENOSPACE, "Disk full or allocation exceeded"},
-                            {EBADOP, "Illegal TFTP operation"},
-                            {EBADID, "Unknown transfer ID"},
-                            {EEXISTS, "File already exists"},
-                            {ENOUSER, "No such user"},
-                            {-1, 0}};
+};
+
+static const errmsg errmsgs[] = {{EUNDEF, "Undefined error code"},
+                                 {ENOTFOUND, "File not found"},
+                                 {EACCESS, "Access violation"},
+                                 {ENOSPACE, "Disk full or allocation exceeded"},
+                                 {EBADOP, "Illegal TFTP operation"},
+                                 {EBADID, "Unknown transfer ID"},
+                                 {EEXISTS, "File already exists"},
+                                 {ENOUSER, "No such user"},
+                                 {EOPTNEG, "Failure to negotiate RFC2347 options"},
+                                 {-1, 0}};
 
 //----------------------------------------------------------------------
 using asio::ip::udp;
