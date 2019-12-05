@@ -42,10 +42,9 @@
 #include <climits>
 #include <cstdarg>
 #include <cstdint>
-#include <cstdio>
 #include <cstdlib>
-#include <cstring>
-#include <string> // strcasecmp used
+#include <cstring> // strcasecmp, memcpy used
+#include <string>
 #include <syslog.h>
 #include <unistd.h>
 
@@ -87,7 +86,7 @@ static const struct options options[] = {{"blksize", set_blksize},
                                          {"utimeout", set_utimeout},
                                          // TBD: {"rollover", set_rollover},
                                          // TBD: not yet! CK {"windowsize", set_windowsize},
-                                         {NULL, NULL}};
+                                         {nullptr, nullptr}};
 
 static bool blksize_set;
 
@@ -239,6 +238,14 @@ static int set_windowsize(uintmax_t *vp)
 }
  ***/
 
+/* Global option-parsing variables initialization */
+void init_opt()
+{
+    blksize_set = false;
+    segsize = default_blksize;
+    tsize = 0;
+}
+
 /*
  * Parse RFC2347 style options; we limit the arguments to positive
  * integers which matches all our current options.
@@ -251,9 +258,6 @@ void do_opt(const char *opt, const char *val, char **ap)
     size_t retlen;
     char *vend;
     uintmax_t v;
-
-    /* Global option-parsing variables initialization */
-    blksize_set = false;
 
     if (!*opt || !*val) {
         return;

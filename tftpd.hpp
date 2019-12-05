@@ -316,8 +316,8 @@ public:
             if (dp->th_opcode == DATA) {
                 // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
                 if (dp->th_block == block) {
-                    if (callback != nullptr) {
-                        off_t percent = tsize / (block * segsize) / 100;
+                    if ((callback != nullptr) && (segsize > 0)) {
+                        size_t percent = tsize / (block * segsize) / 100UL;
                         if ((percent % 10) == 1) {
                             callback(percent);
                         }

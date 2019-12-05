@@ -63,6 +63,7 @@ char copyright[] = "@(#) Copyright (c) 1983 Regents of the University of Califor
 namespace tftpd {
 extern const char *rootdir; // the only tftp root dir used!
 
+void init_opt();
 void do_opt(const char *, const char *, char **);
 int validate_access(std::string &filename, int mode, FILE *&file);
 int tftp(const std::vector<char> &rxbuffer, FILE *&file, std::string &file_path, std::vector<char> &optack);
@@ -99,36 +100,33 @@ struct formats
 int tftp(const std::vector<char> &rxbuffer, FILE *&file, std::string &file_path, std::vector<char> &optack)
 {
     syslog(LOG_NOTICE, "%s(%lu)\n", BOOST_CURRENT_FUNCTION, rxbuffer.size());
+    init_opt();
 
     assert(rxbuffer.size() >= TFTP_HEADER);
 
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-cstyle-cast)
     struct tftphdr *tp = (struct tftphdr *)(rxbuffer.data());
-    tp->th_opcode = ntohs(tp->th_opcode);
-    if ((tp->th_opcode != RRQ) && (tp->th_opcode != WRQ)) {
+    u_short th_opcode = ntohs(tp->th_opcode);
+    if ((th_opcode != RRQ) && (th_opcode != WRQ)) {
         syslog(LOG_ERR, "tftpd: invalid opcode request!\n");
         return (EBADID);
     }
 
     const char *cp;
-    const char *filename, *mode = nullptr;
+    const char *mode = nullptr;
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
-    filename = cp = static_cast<const char *>(tp->th_stuff);
+    const char *filename = cp = static_cast<const char *>(tp->th_stuff);
+    const char *val = nullptr;
+    const char *opt = nullptr;
 
-    u_short tp_opcode = ntohs(tp->th_opcode);
-
-    const char *val = NULL;
-    const char *opt = NULL;
     optack.resize(PKTSIZE);
     char *pktbuf = optack.data();
     char *ap = pktbuf + 2;
-    ((struct tftphdr *)pktbuf)->th_opcode = htons(OACK);
+    ((struct tftphdr *)pktbuf)->th_opcode = htons(OACK);    // NOLINT
 
-    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
-    filename = cp = (char *)&(tp->th_stuff);
     int argn = 0;
-    const struct formats *pf = NULL;
-    char *end = (char *)tp + rxbuffer.size();
+    const struct formats *pf = nullptr;
+    const char *end = rxbuffer.data() + rxbuffer.size();
 
     while (cp < end && *cp) {
         do {
@@ -136,7 +134,8 @@ int tftp(const std::vector<char> &rxbuffer, FILE *&file, std::string &file_path,
         } while (cp < end && *cp);
 
         if (*cp) {
-            puts("Request not null-terminated");
+            optack.clear();
+            syslog(LOG_ERR, "tftpd: Request not null-terminated");
             return EBADOP;
         }
 
@@ -152,12 +151,13 @@ int tftp(const std::vector<char> &rxbuffer, FILE *&file, std::string &file_path,
                 }
             }
             if (!pf->f_mode) {
-                puts("Unknown mode");
+                optack.clear();
+                syslog(LOG_ERR, "tftpd: Unknown mode");
                 return EBADOP;
             }
 
-            // TODO: call validate_access() to check file access and set
-            // tsize and tsize_ok flag in case of RRQ
+            // NOTE: we call validate_access() later to check file access and set
+            // tsize and tsize_ok flag in case of RRQ (unsupported yet)! CK
 
             opt = ++cp;
         } else if (argn & 1) {
@@ -169,18 +169,20 @@ int tftp(const std::vector<char> &rxbuffer, FILE *&file, std::string &file_path,
     }
 
     if ((mode == nullptr) || (rxbuffer.back() != '\0')) {
+        optack.clear();
         syslog(LOG_ERR, "tftpd: invalid option field!\n");
         return (EBADID);
     }
 
     if (argn <= 2) {
-        puts("Request has no options");
+        syslog(LOG_NOTICE, "tftpd: Request has no options");
         optack.clear();
     }
 
     file_path = filename;
-    int ecode = validate_access(file_path, tp->th_opcode, file);
+    int ecode = validate_access(file_path, th_opcode, file);
     if (ecode != 0) {
+        optack.clear();
         if (suppress_error && *filename != '/' && ecode == ENOTFOUND) {
             syslog(LOG_WARNING, "tftpd: deny to asscess file: %s\n", filename);
             return 0; // OK
@@ -189,6 +191,7 @@ int tftp(const std::vector<char> &rxbuffer, FILE *&file, std::string &file_path,
     }
 
     if (tp->th_opcode == RRQ) {
+        optack.clear();
         // NEVER! (*pf->f_send)(pf); // sendfile()
         syslog(LOG_WARNING, "tftpd: only upload supported!\n");
         return (EBADOP);

@@ -50,7 +50,6 @@
 #include "tftp/tftpsubs.h"
 
 #include <csignal>
-#include <cstdio>
 #include <cstring>
 #include <netinet/in.h>
 #include <sys/ioctl.h>
