@@ -61,7 +61,7 @@
 struct bf
 {
     int counter;       /* size of data in buffer, or flag */
-    char buf[PKTSIZE]; /* room for data packet */
+    char buf[65464];   /* RFC2348 MAX_SEGSIZE room for data packet */
 } bfs[2];
 
 /* Values for bf.counter  */

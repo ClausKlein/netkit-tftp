@@ -16,6 +16,7 @@ constexpr int ERRNO_OFFSET{100};
 
 #define TFTP_HEADER (2 * sizeof(uint16_t)) /* should be moved to tftp.h */
 #define PKTSIZE (SEGSIZE + TFTP_HEADER)    /* should be moved to tftp.h */
+#define MAX_SEGSIZE 65464                  /* RFC2348 */
 
 #ifndef OACK
 #define OACK 6

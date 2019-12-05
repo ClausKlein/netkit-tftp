@@ -45,7 +45,7 @@ int tftp(const std::vector<char> &rxbuffer, FILE *&file, std::string &file_path,
 constexpr int TIMEOUT{2};
 constexpr int rexmtval{TIMEOUT};
 constexpr int maxtimeout{5 * TIMEOUT};
-constexpr uintmax_t MAX_SEGSIZE{65464}; // RFC2348
+constexpr uintmax_t max_segsize {MAX_SEGSIZE}; // RFC2348
 
 struct errmsg
 {
@@ -133,8 +133,8 @@ protected:
     void do_receive()
     {
         syslog(LOG_NOTICE, "%s\n", BOOST_CURRENT_FUNCTION);
-        rxdata_.resize(max_length);
-        socket_.async_receive_from(asio::buffer(rxdata_, max_length), senderEndpoint_,
+        rxdata_.resize(PKTSIZE);
+        socket_.async_receive_from(asio::buffer(rxdata_, PKTSIZE), senderEndpoint_,
                                    [this](std::error_code ec, std::size_t bytes_recvd) {
                                        if (!ec && bytes_recvd > 0) {
                                            rxdata_.resize(bytes_recvd);
@@ -215,10 +215,6 @@ protected:
 
 private:
     asio::steady_timer timer_;
-    enum
-    {
-        max_length = MAX_SEGSIZE
-    };
     std::vector<char> rxdata_;
     int timeout_;
     bool last_timeout_ = {false};
@@ -281,7 +277,7 @@ public:
         syslog(LOG_NOTICE, "%s\n", BOOST_CURRENT_FUNCTION);
         // Run an asynchronous read operation with a timeout.
         restart_timeout();
-        socket_.async_receive_from(asio::buffer(dp, PKTSIZE), clientEndpoint_,
+        socket_.async_receive_from(asio::buffer(dp, MAX_SEGSIZE), clientEndpoint_,
                                    [this](std::error_code ec, std::size_t bytes_recvd) {
                                        if (ec) {
                                            syslog(LOG_ERR, "tftpd: read data: %s\n", ec.message().c_str());
@@ -316,10 +312,14 @@ public:
             if (dp->th_opcode == DATA) {
                 // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
                 if (dp->th_block == block) {
-                    if ((callback != nullptr) && (segsize > 0)) {
-                        size_t percent = tsize / (block * segsize) / 100UL;
-                        if ((percent % 10) == 1) {
-                            callback(percent);
+                    if ((callback != nullptr) && ((block * segsize) > 0UL)) {
+                        size_t percent = 100UL * (block * segsize) / tsize;
+                        if (percent != percent_) {
+                            syslog(LOG_NOTICE, "tftpd: %lu%% received\n", percent);
+                            percent_ = percent;
+                            if ((percent % 10) == 0) {
+                                callback(percent);
+                            }
                         }
                     }
                     break; /* normal */
@@ -445,7 +445,8 @@ private:
     struct tftphdr *dp = {nullptr};
     udp::endpoint clientEndpoint_;
     char ackbuf_[PKTSIZE] = {};
-    char rxbuf_[PKTSIZE] = {};
+    char rxbuf_[MAX_SEGSIZE] = {};
     volatile u_int16_t block = {0};
+    size_t percent_= {0};
 };
 } // namespace tftpd

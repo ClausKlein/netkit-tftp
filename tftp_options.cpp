@@ -48,7 +48,7 @@
 #include <syslog.h>
 #include <unistd.h>
 
-constexpr uintmax_t MAX_SEGSIZE{65464}; // RFC2348
+namespace tftpd {
 constexpr uintmax_t min_blksize_rfc{8}; // TBD: after RFC2348! CK
 constexpr uintmax_t default_blksize{512};
 constexpr uintmax_t max_blksize{MAX_SEGSIZE};
@@ -61,7 +61,6 @@ constexpr uintmax_t MS_1K{1000};      // default timeout
 static constexpr bool tsize_ok{true}; // only octet mode supported!
 static uintmax_t g_timeout = MS_1K;   // NOTE: ms! CK
 
-namespace tftpd {
 uintmax_t segsize{default_blksize};
 off_t tsize{0};
 
