@@ -27,7 +27,7 @@ constexpr int ERRNO_OFFSET{100};
 
 void initsock(int);
 void synchnet(int f, _Bool trace);
-struct tftphdr *rw_init(int);
+struct tftphdr *rw_init(int /*x*/);
 static inline struct tftphdr *w_init() { return rw_init(0); } /* write-behind */
 static inline struct tftphdr *r_init() { return rw_init(1); } /* read-ahead */
 int readit(FILE *file, struct tftphdr **dpp, _Bool convert);

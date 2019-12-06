@@ -58,13 +58,15 @@
 #include <syslog.h>
 #include <unistd.h>
 
-struct bf
+constexpr size_t max_buffer{2};
+struct buffer
 {
-    int counter;       /* size of data in buffer, or flag */
-    char buf[65464];   /* RFC2348 MAX_SEGSIZE room for data packet */
-} bfs[2];
+    int counter;           /* size of data in buffer, or flag */
+    char buf[MAX_SEGSIZE]; /* RFC2348 room for data packet */
+};
+static struct buffer bfs[max_buffer];
 
-/* Values for bf.counter  */
+/* Values for buffer.counter  */
 #define BF_ALLOC -3 /* alloc'd but not yet filled */
 #define BF_FREE -2  /* free */
 /* [-1 .. SEGSIZE] = size of data in the data buffer */
@@ -73,8 +75,8 @@ static int nextone; /* index of next buffer to use */
 static int current; /* index of buffer in use */
 
 /* control flags for crlf conversions */
-bool newline = false; /* fillbuf: in middle of newline expansion */
-int prevchar = -1;    /* putbuf: previous char (cr check) */
+static bool newline = false; /* fillbuf: in middle of newline expansion */
+static int prevchar = -1;    /* putbuf: previous char (cr check) */
 
 /*
  * init for either read-ahead or write-behind
@@ -100,7 +102,7 @@ struct tftphdr *rw_init(int x)
 int readit(FILE *file, struct tftphdr **dpp,
            bool convert /* if true, convert to ascii */)
 {
-    struct bf *b;
+    struct buffer *b;
 
     bfs[current].counter = BF_FREE; /* free old one */
     current = !current;             /* "incr" current */
@@ -123,7 +125,7 @@ void read_ahead(FILE *file, bool convert /* if true, convert to ascii */)
     int i;
     char *p;
     int c;
-    struct bf *b;
+    struct buffer *b;
     struct tftphdr *dp;
 
     b = &bfs[nextone];           /* look at "next" buffer */
@@ -172,8 +174,9 @@ void read_ahead(FILE *file, bool convert /* if true, convert to ascii */)
  */
 int writeit(FILE *file, struct tftphdr **dpp, int count, bool convert)
 {
-    bfs[current].counter = count;            /* set size of data to write */
-    current = !current;                      /* switch to other buffer */
+    bfs[current].counter = count; /* set size of data to write */
+    // XXX current = !current;
+    current = ((current + 1) % max_buffer);  /* switch to other buffer */
     if (bfs[current].counter != BF_FREE) {   /* if not free */
         count = write_behind(file, convert); /* flush it */
     }
@@ -193,7 +196,7 @@ int write_behind(FILE *file, bool /*convert*/)
 {
     char *buf;
     int count;
-    struct bf *b;
+    struct buffer *b;
     struct tftphdr *dp;
 
     b = &bfs[nextone];
@@ -206,7 +209,8 @@ int write_behind(FILE *file, bool /*convert*/)
     b->counter = BF_FREE; /* reset flag */
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-cstyle-cast)
     dp = (struct tftphdr *)b->buf;
-    nextone = !nextone; /* incr for next time */
+    // XXX nextone = !nextone;
+    nextone = ((nextone + 1) % max_buffer); /* incr for next time */
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
     buf = dp->th_data;
 
