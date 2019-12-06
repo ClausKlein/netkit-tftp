@@ -67,7 +67,7 @@ char subs_rcsid[] = "$Id: tftpsubs.c,v 1.8 2000/07/22 19:06:29 dholland Exp $";
 
 struct bf
 {
-    int counter;       /* size of data in buffer, or flag */
+    ssize_t counter;   /* size of data in buffer, or flag */
     char buf[PKTSIZE]; /* room for data packet */
 } bfs[2];
 
@@ -105,7 +105,7 @@ struct tftphdr *rw_init(int x)
 /* Have emptied current buffer by sending to net and getting ack.
    Free it and return next buffer filled with data.
  */
-int readit(FILE *file, struct tftphdr **dpp,
+ssize_t readit(FILE *file, struct tftphdr **dpp,
            int convert /* if true, convert to ascii */)
 {
     struct bf *b;
@@ -172,7 +172,7 @@ void read_ahead(FILE *file, int convert /* if true, convert to ascii */)
    from the queue.  Calls write_behind only if next buffer not
    available.
  */
-int writeit(FILE *file, struct tftphdr **dpp, int ct, int convert)
+ssize_t writeit(FILE *file, struct tftphdr **dpp, size_t ct, int convert)
 {
     bfs[current].counter = ct;           /* set size of data to write */
     current = !current;                  /* switch to other buffer */
@@ -189,11 +189,11 @@ int writeit(FILE *file, struct tftphdr **dpp, int ct, int convert)
  * Note spec is undefined if we get CR as last byte of file or a
  * CR followed by anything else.  In this case we leave it alone.
  */
-int write_behind(FILE *file, int convert)
+ssize_t write_behind(FILE *file, int convert)
 {
     char *buf;
-    int count;
-    register int ct;
+    ssize_t count;
+    register ssize_t ct;
     register char *p;
     register int c; /* current character */
     struct bf *b;

@@ -283,7 +283,7 @@ public:
 
         // Run an asynchronous read operation with a timeout.
         restart_timeout();
-        socket_.async_receive_from(asio::buffer(dp_, MAX_SEGSIZE), clientEndpoint_,
+        socket_.async_receive_from(asio::buffer(dp_, MAX_PKTSIZE), clientEndpoint_,
                                    [this](std::error_code ec, std::size_t bytes_recvd) {
                                        if (ec) {
                                            syslog(LOG_ERR, "tftpd: read data: %s\n", ec.message().c_str());
@@ -301,10 +301,12 @@ public:
     {
         syslog(LOG_NOTICE, "%s(%d, len=%lu)\n", BOOST_CURRENT_FUNCTION, block, rxlen);
 
+#if 0
         if (senderEndpoint_ != clientEndpoint_) {
-            syslog(LOG_ERR, "tftpd: Invalid endpoint ID!\n");
-            return (EBADID);
+            syslog(LOG_WARNING, "tftpd: Invalid endpoint ID!\n");
+            return (EBADID);    // FIXME: this aborts running tftp Operation! CK
         }
+#endif
 
         assert(rxlen >= TFTP_HEADER);
 
@@ -354,8 +356,8 @@ public:
         // write the current data segement
         // ===============================
         size_t seg_length = rxlen - TFTP_HEADER;
-        int written = writeit(file_guard_.get(), &dp_, seg_length, false);
-        if (written != static_cast<int>(seg_length)) { /* ahem */
+        ssize_t written = writeit(file_guard_.get(), &dp_, seg_length, false);
+        if (written != static_cast<ssize_t>(seg_length)) { /* ahem */
             int error = ENOSPACE;
             if (written < 0) {
                 syslog(LOG_ERR, "tftpd: writeit() failed! %s\n", strerror(errno));
@@ -400,23 +402,23 @@ public:
         start_last_timeout();
 
         // Run an asynchronous read operation with a timeout.
-        socket_.async_receive_from(
-            asio::buffer(rxbuf_, sizeof(rxbuf_)), clientEndpoint_, [this](std::error_code ec, std::size_t bytes_recvd) {
-                if (!ec) {
-                    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-cstyle-cast)
-                    struct tftphdr *dp = (struct tftphdr *)rxbuf_;
-                    if ((bytes_recvd >= TFTP_HEADER) && /* if read some data */
-                        (dp->th_opcode == DATA) &&      /* and got a data block */
-                        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
-                        (block == dp->th_block)) {
-                        /* then my last ack was lost, resend final ack */
-                        // NOTE: do not call! send_ackbuf(); CK
-                        syslog(LOG_WARNING, "tftpd: Resend the final ack!");
-                        (void)socket_.send_to(asio::buffer(ackbuf_, TFTP_HEADER), clientEndpoint_);
-                    }
-                }
-                cancel_timeout();
-            });
+        socket_.async_receive_from(asio::buffer(rxbuf_, sizeof(rxbuf_)), clientEndpoint_,
+                                   [this](std::error_code ec, std::size_t bytes_recvd) {
+                                       if (!ec) {
+                                           // NOLINTNEXTLINE(cppcoreguidelines-pro-type-cstyle-cast)
+                                           struct tftphdr *dp = (struct tftphdr *)rxbuf_;
+                                           if ((bytes_recvd >= TFTP_HEADER) && /* if read some data */
+                                               (dp->th_opcode == DATA) &&      /* and got a data block */
+                                               // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
+                                               (block == dp->th_block)) {
+                                               /* then my last ack was lost, resend final ack */
+                                               // NOTE: do not call! send_ackbuf(); CK
+                                               syslog(LOG_WARNING, "tftpd: Resend the final ack!");
+                                               (void)socket_.send_to(asio::buffer(ackbuf_, TFTP_HEADER), clientEndpoint_);
+                                           }
+                                       }
+                                       cancel_timeout();
+                                   });
     }
 
     /* When an error has occurred, it is possible that the two sides
@@ -458,7 +460,7 @@ private:
     struct tftphdr *dp_ = {nullptr};
     udp::endpoint clientEndpoint_;
     char ackbuf_[PKTSIZE] = {};
-    char rxbuf_[MAX_SEGSIZE] = {};
+    char rxbuf_[MAX_PKTSIZE] = {};
     volatile u_int16_t block = {0};
     size_t percent_ = {0};
 };

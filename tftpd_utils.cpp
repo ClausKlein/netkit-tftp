@@ -190,7 +190,9 @@ int tftp(const std::vector<char> &rxbuffer, FILE *&file, std::string &file_path,
         return (EBADOP);
     }
 
-    optack.resize(ack_length);
+    if (argn > 2) {
+        optack.resize(ack_length);
+    }
     return 0; // OK
 }
 

@@ -74,13 +74,13 @@ struct option
 };
 
 static const struct option options[] = {{"blksize", set_blksize},
-                                         {"blksize2", set_blksize2},
-                                         {"tsize", set_tsize},
-                                         {"timeout", set_timeout},
-                                         {"utimeout", set_utimeout},
-                                         // TBD: {"rollover", set_rollover},
-                                         // TBD: not yet! CK {"windowsize", set_windowsize},
-                                         {nullptr, nullptr}};
+                                        {"blksize2", set_blksize2},
+                                        {"tsize", set_tsize},
+                                        {"timeout", set_timeout},
+                                        {"utimeout", set_utimeout},
+                                        // TBD: {"rollover", set_rollover},
+                                        // TBD: not yet! CK {"windowsize", set_windowsize},
+                                        {nullptr, nullptr}};
 
 static bool blksize_set{false};
 
