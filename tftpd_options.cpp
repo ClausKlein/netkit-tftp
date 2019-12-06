@@ -45,7 +45,7 @@
 
 namespace tftpd {
 constexpr uintmax_t min_blksize_rfc{8}; // TBD: after RFC2348! CK
-constexpr uintmax_t default_blksize{PKTSIZE};
+constexpr uintmax_t default_blksize{SEGSIZE};
 constexpr uintmax_t max_blksize{MAX_SEGSIZE};
 constexpr uintmax_t max_windowsize{64};
 constexpr uintmax_t max_timeout{255}; // seconds

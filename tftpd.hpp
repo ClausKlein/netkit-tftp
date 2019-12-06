@@ -353,26 +353,26 @@ public:
         // ===============================
         // write the current data segement
         // ===============================
-        int length = rxlen - TFTP_HEADER;
-        int size = writeit(file_guard_.get(), &dp_, length, false);
-        if (size != length) { /* ahem */
+        size_t seg_length = rxlen - TFTP_HEADER;
+        int written = writeit(file_guard_.get(), &dp_, seg_length, false);
+        if (written != static_cast<int>(seg_length)) { /* ahem */
             int error = ENOSPACE;
-            if (size < 0) {
+            if (written < 0) {
                 syslog(LOG_ERR, "tftpd: writeit() failed! %s\n", strerror(errno));
                 error = (errno + ERRNO_OFFSET);
             }
             return (error);
         }
 
-        if (rxlen == g_segsize) {
+        if (seg_length == g_segsize) {
             send_ack();
             return 0; // OK
         }
 
         // =======================================================
         // write the final data segment
-        size = write_behind(file_guard_.get(), false);
-        if (size >= 0) {
+        written = write_behind(file_guard_.get(), false);
+        if (written >= 0) {
             std::string old_path(file_path_ + ".upload");
             (void)rename(old_path.c_str(), file_path_.c_str());
             syslog(LOG_NOTICE, "tftpd: successfully received file: %s\n", file_path_.c_str());
