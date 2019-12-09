@@ -28,8 +28,7 @@ CHECKS?='-*,misc-*,boost-*,cert-*,misc-unused-parameters'
 
 ## CC:=/opt/local/bin/clang
 ## CXX:=/opt/local/bin/clang++
-#NO!
-BUILD_TYPE:=Coverage
+#NO! BUILD_TYPE:=Coverage
 BUILD_TYPE?=Debug
 BUILD_TYPE?=Release
 # GENERATOR:=Xcode

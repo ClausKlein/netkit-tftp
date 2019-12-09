@@ -44,15 +44,15 @@ int main()
 
     std::string test2 = {"\0\2testfile.dat\0octet\0"s
                          "timeout\0"s
-                         "1\0"s
+                         "2\0"s
                          "blksize2\0"s
-                         "1234567\0"s};
+                         "65464\0"s};
     err = tftpd::tftp(std::vector<char>(test2.begin(), test2.end()), fp, path, ackbuf);
     printf("%s segsize:%lu tsize:%ld timeout:%lu\n", path.c_str(), tftpd::g_segsize, tftpd::g_tsize, tftpd::g_timeout);
     assert(!err);
-    assert(tftpd::g_segsize == MAX_SEGSIZE);
+    assert(tftpd::g_segsize == (1 << 15));
     assert(tftpd::g_tsize == 0);
-    assert(tftpd::g_timeout == 1000); // NOTE: ms
+    assert(tftpd::g_timeout == 2000); // NOTE: ms
 
     std::string test3 = {"\0\2testfile.dat\0octet\0"s
                          "blksize2\0"s
@@ -64,6 +64,26 @@ int main()
     assert(!err);
     assert(tftpd::g_segsize == 1024);
     assert(tftpd::g_timeout == 10); // NOTE: ms
+
+    std::string test4 = {"\0\2minimal.dat\0octet\0"s
+                         "blksize\0"s
+                         "777777\0"s
+                         "blksize\0"s
+                         "0\0"s
+                         "timeout\0"s
+                         "333\0"s
+                         "timeout\0"s
+                         "0\0"s
+                         "tsize\0"s
+                         "NoNumber\0"s
+                         "utimeout\0"s
+                         "999\0"s}; // us!
+    err = tftpd::tftp(std::vector<char>(test4.begin(), test4.end()), fp, path, ackbuf);
+    printf("%s segsize:%lu tsize:%ld timeout:%lu\n", path.c_str(), tftpd::g_segsize, tftpd::g_tsize, tftpd::g_timeout);
+    assert(!err);
+    assert(!ackbuf.empty());
+    assert(tftpd::g_segsize == MAX_SEGSIZE);
+    assert(tftpd::g_timeout == 1000); // NOTE: ms
 
     const char unknown[] = {"\0\1unknown_mode.dat\0netascii\0"};
     err = tftpd::tftp(std::vector<char>(unknown, unknown + sizeof(unknown)), fp, path, ackbuf);
