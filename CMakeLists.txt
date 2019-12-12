@@ -9,13 +9,59 @@ project(netkit-tftp VERSION 0.17)
 # ===============================
 include(build_options OPTIONAL)
 
-include(GNUInstallDirs)
 
+include(GNUInstallDirs)
+include(FetchContent)
+function(fetchcontent_makeavailable_asio name)
+    fetchcontent_getproperties(${name})
+    if(NOT ${name}_POPULATED)
+        fetchcontent_populate(${name})
+        add_subdirectory(${${name}_SOURCE_DIR}/${name} ${${name}_BINARY_DIR})
+        include_directories(${${name}_SOURCE_DIR}/${name}/include)
+    endif()
+endfunction()
+
+
+#---------------------------------------------------------------------------------------
+# search required packages and libs
+#---------------------------------------------------------------------------------------
 find_package(Threads REQUIRED)
-find_package(asio CONFIG REQUIRED)
+
+
+#---------------------------------------------------------------------------------------
+# Set NETKIT_TFTP_MASTER_PROJECT to ON if we are building netkit-tftp
+#---------------------------------------------------------------------------------------
+# Check if netkit-tftp is being used directly or via add_subdirectory, but allow overriding
+if(NOT NETKIT_TFTP_MASTER_PROJECT)
+    if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
+        message(STATUS "${CMAKE_CURRENT_SOURCE_DIR} == ${CMAKE_SOURCE_DIR} => NETKIT_TFTP_MASTER_PROJECT")
+        set(NETKIT_TFTP_MASTER_PROJECT ON)
+    else()
+        set(NETKIT_TFTP_MASTER_PROJECT OFF)
+    endif()
+endif()
+
+
+if(NETKIT_TFTP_MASTER_PROJECT)
+    find_package(asio 1.14 QUIET)
+    if(NOT TARGET asio::standalone)
+        fetchcontent_declare(
+            asio
+            GIT_REPOSITORY git@code2.rsint.net:sdhr/third_party/product/asio.git
+            GIT_TAG   0e823a607bc37e66c61d69c60c39822d0eb2e68d
+            #TODO GIT_TAG   rsint-asio-1-14-0
+        )
+        fetchcontent_makeavailable_asio(asio)
+        add_library(asio::standalone ALIAS standalone) # TODO: workaround! remove this line later; CK
+    endif()
+else()
+    find_package(asio 1.14 CONFIG REQUIRED)
+endif()
+
 
 add_subdirectory(tftp)
 add_subdirectory(tftpd)
+
 
 # asio sample
 # add_executable(third_party_lib third_party_lib.cpp)
@@ -28,6 +74,7 @@ add_subdirectory(tftpd)
 add_library(tftpd async_tftpd_server.cpp async_tftpd_server.hpp tftpd.hpp
             tftpd_utils.cpp tftpd_options.cpp tftp_subs.cpp tftp/tftpsubs.h
 )
+add_library(tftpd::tftpd ALIAS tftpd)
 target_link_libraries(tftpd INTERFACE Threads::Threads)
 target_include_directories(tftpd INTERFACE
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
@@ -37,42 +84,48 @@ target_include_directories(tftpd INTERFACE
 #---------------------------------------------------------------------------------------
 # Install and export tftpd-targets
 #---------------------------------------------------------------------------------------
-set(ConfigPackageLocation ${CMAKE_INSTALL_LIBDIR}/cmake/tftpd)
-install(TARGETS tftpd EXPORT tftpd-targets DESTINATION "${CMAKE_INSTALL_LIBDIR}")
-install(FILES async_tftpd_server.hpp DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}")
-install(FILES tftpd-config.cmake DESTINATION ${ConfigPackageLocation})
-install(EXPORT tftpd-targets DESTINATION ${ConfigPackageLocation} NAMESPACE tftpd::)
+option(NETKIT_TFTP_INSTALL "Generate the install target." ${NETKIT_TFTP_MASTER_PROJECT})
+if(NETKIT_TFTP_INSTALL)
+    set(ConfigPackageLocation ${CMAKE_INSTALL_LIBDIR}/cmake/tftpd)
+    install(TARGETS tftpd EXPORT tftpd-targets DESTINATION ${CMAKE_INSTALL_LIBDIR})
+    install(FILES async_tftpd_server.hpp DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+    install(FILES tftpd-config.cmake DESTINATION ${ConfigPackageLocation})
+    install(EXPORT tftpd-targets DESTINATION ${ConfigPackageLocation} NAMESPACE tftpd::)
+endif()
 
 #---------------------------------------------------------------------------------------
 # ctest
 #---------------------------------------------------------------------------------------
-enable_testing()
+option(NETKIT_TFTP_TESTS "Build test target." ${NETKIT_TFTP_MASTER_PROJECT})
+if(NETKIT_TFTP_TESTS)
+    enable_testing()
 
-add_executable(option_test option_test.cpp async_tftpd_server.hpp)
-target_link_libraries(option_test tftpd asio::standalone)
-add_test(NAME option_test COMMAND option_test)
+    add_executable(option_test option_test.cpp async_tftpd_server.hpp)
+    target_link_libraries(option_test tftpd asio::standalone)
+    add_test(NAME option_test COMMAND option_test)
 
-add_executable(tftpd_test tftpd_test.cpp async_tftpd_server.hpp)
-target_link_libraries(tftpd_test tftpd asio::standalone)
-add_test(
-    NAME tftpd_test
-    COMMAND ${CMAKE_SOURCE_DIR}/test.sh
-    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-)
-
-# test coverage option
-if(CMAKE_BUILD_TYPE STREQUAL "Coverage")
-    include(CodeCoverage)
-
-    set(COVERAGE_EXCLUDES
-        '/usr/*' '/opt/*'
-        '${CMAKE_SOURCE_DIR}/tftp/*'
-        '${CMAKE_SOURCE_DIR}/tftpd/*'
-        '/Applications/Xcode.app/*'
+    add_executable(tftpd_test tftpd_test.cpp async_tftpd_server.hpp)
+    target_link_libraries(tftpd_test tftpd asio::standalone)
+    add_test(
+        NAME tftpd_test
+        COMMAND ${CMAKE_SOURCE_DIR}/test.sh
+        WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
     )
-    setup_target_for_coverage(
-        NAME lcov   # custom target.
-        EXECUTABLE ctest    # the test driver executable that runs the tests.
-    )
+
+    # test coverage option
+    if(CMAKE_BUILD_TYPE STREQUAL "Coverage")
+        include(CodeCoverage)
+
+        set(COVERAGE_EXCLUDES
+            '/usr/*' '/opt/*'
+            '${CMAKE_SOURCE_DIR}/tftp/*'
+            '${CMAKE_SOURCE_DIR}/tftpd/*'
+            '/Applications/Xcode.app/*'
+        )
+        setup_target_for_coverage(
+            NAME lcov   # custom target.
+            EXECUTABLE ctest    # the test driver executable that runs the tests.
+        )
+    endif()
 endif()
 
