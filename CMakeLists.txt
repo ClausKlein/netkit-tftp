@@ -26,7 +26,7 @@ add_subdirectory(tftpd)
 # target_link_libraries(async_udp_echo_server asio::standalone Threads::Threads)
 
 add_library(tftpd async_tftpd_server.cpp async_tftpd_server.hpp tftpd.hpp
-            tftpd_utils.cpp tftpsubs.cpp tftp/tftpsubs.h
+            tftpd_utils.cpp tftpd_options.cpp tftp_subs.cpp tftp/tftpsubs.h
 )
 target_link_libraries(tftpd INTERFACE Threads::Threads)
 target_include_directories(tftpd INTERFACE
@@ -47,6 +47,10 @@ install(EXPORT tftpd-targets DESTINATION ${ConfigPackageLocation} NAMESPACE tftp
 # ctest
 #---------------------------------------------------------------------------------------
 enable_testing()
+
+add_executable(option_test option_test.cpp async_tftpd_server.hpp)
+target_link_libraries(option_test tftpd asio::standalone)
+add_test(NAME option_test COMMAND option_test)
 
 add_executable(tftpd_test tftpd_test.cpp async_tftpd_server.hpp)
 target_link_libraries(tftpd_test tftpd asio::standalone)

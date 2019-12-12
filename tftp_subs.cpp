@@ -50,7 +50,6 @@
 #include "tftp/tftpsubs.h"
 
 #include <csignal>
-#include <cstdio>
 #include <cstring>
 #include <netinet/in.h>
 #include <sys/ioctl.h>
@@ -59,13 +58,15 @@
 #include <syslog.h>
 #include <unistd.h>
 
-struct bf
+constexpr size_t max_buffer{2};
+struct buffer
 {
-    int counter;       /* size of data in buffer, or flag */
-    char buf[PKTSIZE]; /* room for data packet */
-} bfs[2];
+    ssize_t counter;       /* size of data in buffer, or flag */
+    char buf[MAX_SEGSIZE]; /* RFC2348 room for data packet */
+};
+static struct buffer bfs[max_buffer];
 
-/* Values for bf.counter  */
+/* Values for buffer.counter  */
 #define BF_ALLOC -3 /* alloc'd but not yet filled */
 #define BF_FREE -2  /* free */
 /* [-1 .. SEGSIZE] = size of data in the data buffer */
@@ -74,8 +75,8 @@ static int nextone; /* index of next buffer to use */
 static int current; /* index of buffer in use */
 
 /* control flags for crlf conversions */
-bool newline = false; /* fillbuf: in middle of newline expansion */
-int prevchar = -1;    /* putbuf: previous char (cr check) */
+static bool newline = false; /* fillbuf: in middle of newline expansion */
+static int prevchar = -1;    /* putbuf: previous char (cr check) */
 
 /*
  * init for either read-ahead or write-behind
@@ -101,7 +102,7 @@ struct tftphdr *rw_init(int x)
 int readit(FILE *file, struct tftphdr **dpp,
            bool convert /* if true, convert to ascii */)
 {
-    struct bf *b;
+    struct buffer *b;
 
     bfs[current].counter = BF_FREE; /* free old one */
     current = !current;             /* "incr" current */
@@ -124,7 +125,7 @@ void read_ahead(FILE *file, bool convert /* if true, convert to ascii */)
     int i;
     char *p;
     int c;
-    struct bf *b;
+    struct buffer *b;
     struct tftphdr *dp;
 
     b = &bfs[nextone];           /* look at "next" buffer */
@@ -167,21 +168,21 @@ void read_ahead(FILE *file, bool convert /* if true, convert to ascii */)
 #endif
 
 /*
- * Update count associated with the buffer, get new buffer
- * from the queue.  Calls write_behind only if next buffer not
- * available.
+ * Update count associated with the buffer, get new buffer from the queue.
+ * NOTE: Calls write_behind only if next buffer not available.
  */
-int writeit(FILE *file, struct tftphdr **dpp, int count, bool convert)
+ssize_t writeit(FILE *file, struct tftphdr **dpp, size_t count, bool convert)
 {
-    bfs[current].counter = count;            /* set size of data to write */
-    current = !current;                      /* switch to other buffer */
-    if (bfs[current].counter != BF_FREE) {   /* if not free */
-        count = write_behind(file, convert); /* flush it */
+    ssize_t written = count;
+    bfs[current].counter = count;              /* set size of data to write */
+    current = ((current + 1) % max_buffer);    /* switch to other buffer */
+    if (bfs[current].counter != BF_FREE) {     /* if not free */
+        written = write_behind(file, convert); /* flush it */
     }
     bfs[current].counter = BF_ALLOC; /* mark as alloc'd */
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-cstyle-cast)
     *dpp = (struct tftphdr *)bfs[current].buf;
-    return count; /* this is a lie of course */
+    return written; // this may a lie of course!
 }
 
 /*
@@ -190,11 +191,11 @@ int writeit(FILE *file, struct tftphdr **dpp, int count, bool convert)
  * Note spec is undefined if we get CR as last byte of file or a
  * CR followed by anything else.  In this case we leave it alone.
  */
-int write_behind(FILE *file, bool /*convert*/)
+ssize_t write_behind(FILE *file, bool /*convert*/)
 {
     char *buf;
-    int count;
-    struct bf *b;
+    ssize_t count;
+    struct buffer *b;
     struct tftphdr *dp;
 
     b = &bfs[nextone];
@@ -207,7 +208,7 @@ int write_behind(FILE *file, bool /*convert*/)
     b->counter = BF_FREE; /* reset flag */
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-cstyle-cast)
     dp = (struct tftphdr *)b->buf;
-    nextone = !nextone; /* incr for next time */
+    nextone = ((nextone + 1) % max_buffer); /* incr for next time */
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
     buf = dp->th_data;
 
@@ -224,7 +225,7 @@ int write_behind(FILE *file, bool /*convert*/)
     }
 
     char *p = buf;
-    int ct = count;
+    ssize_t ct = count;
     while ((ct--) != 0) {           /* loop over the buffer */
         int c;                      /* current character */
         c = *p++;                   /* pick up a character */
