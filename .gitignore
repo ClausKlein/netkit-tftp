@@ -7,3 +7,5 @@ tftpd/tftpd
 tftpd/tftpsubs.c
 tftpd/tftpsubs.h
 lcov/
+build/
+__pycache__/
