@@ -43,19 +43,17 @@ endif()
 
 
 if(NETKIT_TFTP_MASTER_PROJECT)
-    find_package(asio 1.14 QUIET)
+    find_package(asio 1.14.1 QUIET)
     if(NOT TARGET asio::standalone)
         fetchcontent_declare(
             asio
             GIT_REPOSITORY git@code2.rsint.net:sdhr/third_party/product/asio.git
-            GIT_TAG   0e823a607bc37e66c61d69c60c39822d0eb2e68d
-            #TODO GIT_TAG   rsint-asio-1-14-0
+            GIT_TAG        rsint-asio-1.14.1
         )
         fetchcontent_makeavailable_asio(asio)
-        add_library(asio::standalone ALIAS standalone) # TODO: workaround! remove this line later; CK
     endif()
 else()
-    find_package(asio 1.14 CONFIG REQUIRED)
+    find_package(asio 1.14.1 CONFIG REQUIRED)
 endif()
 
 
