@@ -25,6 +25,10 @@ CHECKS?='-*,cppcoreguidelines-*,cppcoreguidelines-pro-*'
 CHECKS?='-*,portability-*,readability-*'
 CHECKS?='-*,misc-*,boost-*,cert-*,misc-unused-parameters'
 
+DESTDIR?=/tmp/staging/$(PROJECT_NAME)
+CMAKE_INSTALL_PREFIX?=/opt/sdhr/SDHR/staging/imx8m-sdhr/develop
+# CMAKE_PREFIX_PATH?=/opt/sdhr/SDHR/staging/imx8m-sdhr/develop
+
 
 ## CC:=/opt/local/bin/clang
 ## CXX:=/opt/local/bin/clang++
@@ -62,6 +66,7 @@ setup: $(BUILD_DIR) .clang-tidy compile_commands.json
 .configure-$(BUILD_TYPE): CMakeLists.txt
 	cd $(BUILD_DIR) && cmake -G $(GENERATOR) -Wdeprecated -Wdev \
       -DUSE_LCOV=$(USE_LOV) -DCMAKE_BUILD_TYPE=$(BUILD_TYPE) \
+      -DCMAKE_INSTALL_PREFIX=$(CMAKE_INSTALL_PREFIX) \
       -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_C_COMPILER=${CC} -DCMAKE_CXX_COMPILER=${CXX} $(CURDIR)
 	touch $@
 

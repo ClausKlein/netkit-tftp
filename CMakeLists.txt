@@ -43,12 +43,12 @@ endif()
 
 
 if(NETKIT_TFTP_MASTER_PROJECT)
-    find_package(asio 1.14.1 QUIET)
+    find_package(asio 1.14.1)
     if(NOT TARGET asio::standalone)
         fetchcontent_declare(
             asio
             GIT_REPOSITORY git@code2.rsint.net:sdhr/third_party/product/asio.git
-            GIT_TAG        rsint-asio-1.14.1
+            GIT_TAG 3e0d227b9307e0b680907418dd9625914a518767 # rsint-asio-1.14.1
         )
         fetchcontent_makeavailable_asio(asio)
     endif()
