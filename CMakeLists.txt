@@ -43,8 +43,9 @@ endif()
 
 
 if(NETKIT_TFTP_MASTER_PROJECT)
-    find_package(asio 1.14.1)
+    find_package(asio 1.14.1 CONFIG CMAKE_FIND_ROOT_PATH_BOTH)
     if(NOT TARGET asio::standalone)
+        message(WARNING "Try to FetchContentget asio with FetchContent ...")
         fetchcontent_declare(
             asio
             GIT_REPOSITORY git@code2.rsint.net:sdhr/third_party/product/asio.git
@@ -53,9 +54,11 @@ if(NETKIT_TFTP_MASTER_PROJECT)
         fetchcontent_makeavailable_asio(asio)
     endif()
 else()
-    find_package(asio 1.14.1 CONFIG REQUIRED)
+    find_package(asio 1.14.1 CONFIG REQUIRED CMAKE_FIND_ROOT_PATH_BOTH)
 endif()
-
+if(asio_CONFIG)
+    message(STATUS "Found ${asio_CONFIG}")
+endif()
 
 add_subdirectory(tftp)
 add_subdirectory(tftpd)
@@ -73,8 +76,8 @@ add_library(tftpd async_tftpd_server.cpp async_tftpd_server.hpp tftpd.hpp
             tftpd_utils.cpp tftpd_options.cpp tftp_subs.cpp tftp/tftpsubs.h
 )
 add_library(tftpd::tftpd ALIAS tftpd)
-target_link_libraries(tftpd INTERFACE Threads::Threads)
-target_include_directories(tftpd INTERFACE
+target_link_libraries(tftpd PUBLIC asio::standalone Threads::Threads)
+target_include_directories(tftpd PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
   $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
@@ -99,11 +102,11 @@ if(NETKIT_TFTP_TESTS)
     enable_testing()
 
     add_executable(option_test option_test.cpp async_tftpd_server.hpp)
-    target_link_libraries(option_test tftpd asio::standalone)
+    target_link_libraries(option_test tftpd)
     add_test(NAME option_test COMMAND option_test)
 
     add_executable(tftpd_test tftpd_test.cpp async_tftpd_server.hpp)
-    target_link_libraries(tftpd_test tftpd asio::standalone)
+    target_link_libraries(tftpd_test tftpd)
     add_test(
         NAME tftpd_test
         COMMAND ${CMAKE_SOURCE_DIR}/test.sh
