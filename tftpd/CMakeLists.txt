@@ -1,11 +1,11 @@
 add_executable(
     in.tftpd
     tftpd.c
-    "${CMAKE_SOURCE_DIR}/tftp/tftpsubs.c"
-    "${CMAKE_SOURCE_DIR}/tftp/tftpsubs.h"
+    ../tftp/tftpsubs.c
+    ../tftp/tftpsubs.h
 )
 target_include_directories(in.tftpd PRIVATE
-    "${CMAKE_SOURCE_DIR}/tftp/"
+    ../tftp/
 )
 
 # install(TARGETS in.tftpd DESTINATION ${CMAKE_INSTALL_SBIN_DIR})

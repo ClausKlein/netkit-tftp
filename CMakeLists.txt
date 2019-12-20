@@ -26,6 +26,7 @@ endfunction()
 # search required packages and libs
 #---------------------------------------------------------------------------------------
 find_package(Threads REQUIRED)
+find_package(Boost REQUIRED)
 
 
 #---------------------------------------------------------------------------------------
@@ -43,7 +44,7 @@ endif()
 
 
 if(NETKIT_TFTP_MASTER_PROJECT)
-    find_package(asio 1.14.1 CONFIG CMAKE_FIND_ROOT_PATH_BOTH)
+    find_package(asio 1.14.1 CONFIG)
     if(NOT TARGET asio::standalone)
         message(WARNING "Try to FetchContentget asio with FetchContent ...")
         fetchcontent_declare(
@@ -54,7 +55,9 @@ if(NETKIT_TFTP_MASTER_PROJECT)
         fetchcontent_makeavailable_asio(asio)
     endif()
 else()
-    find_package(asio 1.14.1 CONFIG REQUIRED CMAKE_FIND_ROOT_PATH_BOTH)
+    if(NOT TARGET asio::standalone)
+        find_package(asio 1.14.1 CONFIG REQUIRED)
+    endif()
 endif()
 if(asio_CONFIG)
     message(STATUS "Found ${asio_CONFIG}")
@@ -77,6 +80,7 @@ add_library(tftpd async_tftpd_server.cpp async_tftpd_server.hpp tftpd.hpp
 )
 add_library(tftpd::tftpd ALIAS tftpd)
 target_link_libraries(tftpd PUBLIC asio::standalone Threads::Threads)
+target_include_directories(tftpd PRIVATE ${Boost_INCLUDE_DIRS})
 target_include_directories(tftpd PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
   $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
