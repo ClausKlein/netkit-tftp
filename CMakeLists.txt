@@ -25,6 +25,8 @@ endfunction()
 #---------------------------------------------------------------------------------------
 # search required packages and libs
 #---------------------------------------------------------------------------------------
+# This variable controls whether the CMAKE_FIND_ROOT_PATH and CMAKE_SYSROOT are used by find_package().
+set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE BOTH CACHE STRING "NOTE: forced value!" FORCE)
 find_package(Threads REQUIRED)
 find_package(Boost REQUIRED)
 
