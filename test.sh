@@ -8,11 +8,11 @@ sudo umount -t tmpfs ${TFTPDIR} || echo "OK"
 rm -rf ${TFTPDIR}
 
 ##############################################
-# upload must fail, no tftpboot dir
-bin/tftpd_test 1234 &
-sleep 1
-${TFTP} -m binary -c put rules.ninja zero.dat && exit 1
-wait
+# upload should fail, no tftpboot dir
+# bin/tftpd_test 1234 &
+# sleep 1
+# ${TFTP} -m binary -c put rules.ninja zero.dat && exit 1
+# wait
 ##############################################
 
 mkdir ${TFTPDIR}
@@ -24,6 +24,8 @@ chmod 400 ${TFTPDIR}/zero.dat
 # download must fail, dir not world readable
 bin/tftpd_test 1234 &
 sleep 1
+chmod 700 ${TFTPDIR}
+sync
 ${TFTP} -m binary -c get zero.dat zero.dat && exit 1
 wait
 

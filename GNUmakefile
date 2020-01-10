@@ -6,7 +6,7 @@
 # Disable the built-in implicit rules.
 MAKEFLAGS+= --no-builtin-rules
 
-.PHONY: setup all test lcov install check format clean distclean
+.PHONY: setup show all test lcov install check format clean distclean
 
 PROJECT_NAME:=$(shell basename $${PWD})
 
@@ -25,6 +25,9 @@ CHECKS?='-*,cppcoreguidelines-*,cppcoreguidelines-pro-*'
 CHECKS?='-*,portability-*,readability-*'
 CHECKS?='-*,misc-*,boost-*,cert-*,misc-unused-parameters'
 
+# TODO setup:
+# source /opt/sdhr/SDHR/core/v0.4.1-0-ga6ed523/imx8mm-sdhr/develop/sdk/environment-setup-aarch64-poky-linux
+#
 # prevent hard config of find_package(asio 1.14.1 CONFIG CMAKE_FIND_ROOT_PATH_BOTH)
 ifeq (NO${CROSS_COMPILE},NO)
     ##XXX CC:=/opt/local/bin/clang
@@ -38,7 +41,8 @@ ifeq (NO${CROSS_COMPILE},NO)
     CMAKE_PREFIX_PATH?="${CMAKE_STAGING_PREFIX};/opt/local;/usr"
 else
     CMAKE_STAGING_PREFIX?=/tmp/staging/${CROSS_COMPILE}$(PROJECT_NAME)
-    CMAKE_PREFIX_PATH?="${CMAKE_STAGING_PREFIX};${OECORE_TARGET_SYSROOT}"
+    CMAKE_PREFIX_PATH?="${CMAKE_STAGING_PREFIX};/opt/sdhr/SDHR/staging/imx8mm-sdhr/develop/"
+    #FIXME CMAKE_FIND_ROOT_PATH?="${CMAKE_STAGING_PREFIX};${OECORE_TARGET_SYSROOT}"
 endif
 
 # NOTE: use
@@ -73,7 +77,7 @@ test: all
 
 # NOTE: we do only check the new cpp file! CK
 check: setup .configure-$(BUILD_TYPE) compile_commands.json
-	run-clang-tidy.py -header-filter=$(checkAllHeader) -checks=$(CHECKS) *.cpp | tee run-clang-tidy.log 2>&1
+	run-clang-tidy.py -header-filter=$(checkAllHeader) -checks=$(CHECKS) | tee run-clang-tidy.log 2>&1
 	egrep '\b(warning|error):' run-clang-tidy.log | perl -pe 's/(^.*) (warning|error):/\2/' | sort -u
 
 setup: $(BUILD_DIR) .clang-tidy compile_commands.json
@@ -97,6 +101,9 @@ $(BUILD_DIR): GNUmakefile
 format: .clang-format
 	find . -type f \( -name '*.hxx' -o -name '*.hpp' -o -name '*.cxx' -o -name '*.cpp' \) -print0 | xargs -0 clang-format -style=file -i
 
+
+show: setup
+	cmake -S $(CURDIR) -B $(BUILD_DIR) -L
 
 lcov: $(BUILD_DIR) .configure-Coverage
 	cmake --build $(BUILD_DIR) --target $@
