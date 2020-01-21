@@ -15,7 +15,7 @@ std::string tftpd::receive_file(const char *rootdir, short port, std::function<v
     tftpd::receiver s(io_context, port);
 
     // make sure the rootdir exists
-    std::string mkdir("/usr/bin/mkdir -p ");
+    std::string mkdir("/bin/mkdir -p ");
     mkdir.append(rootdir);
     (void) system(mkdir.c_str());   // we hope the best and continue! CK
 
