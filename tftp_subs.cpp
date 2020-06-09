@@ -62,7 +62,7 @@ constexpr size_t max_buffer{2};
 struct buffer
 {
     ssize_t counter;       /* size of data in buffer, or flag */
-    char buf[MAX_SEGSIZE]; /* RFC2348 room for data packet */
+    char buf[MAX_PKTSIZE]; /* RFC2348 room for data packet */
 };
 static struct buffer bfs[max_buffer];
 
