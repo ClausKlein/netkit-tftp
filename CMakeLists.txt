@@ -1,7 +1,6 @@
-cmake_minimum_required(VERSION 3.13)
+cmake_minimum_required(VERSION 3.13..3.15)
 
-list(APPEND CMAKE_MODULE_PATH $ENV{HOME}/Workspace/cmake)
-list(APPEND CMAKE_MODULE_PATH $ENV{HOME}/cmake)
+# list(APPEND CMAKE_MODULE_PATH $ENV{HOME}/Workspace/cmake)
 
 include(before_project_setup OPTIONAL)
 # ===============================
