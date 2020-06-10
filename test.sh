@@ -4,6 +4,9 @@ TFTPDIR=/tmp/tftpboot
 
 cd ${PWD}
 
+script_dir=`dirname "$0"`
+ln -sf ${script_dir}/tftpy_client.py .
+
 sudo umount -t tmpfs ${TFTPDIR} || echo "OK"
 rm -rf ${TFTPDIR}
 
@@ -43,7 +46,7 @@ wait
 
 
 ##############################################
-sudo mount -t tmpfs -o size=160K,mode=0777 tmpfs ${TFTPDIR}
+sudo mount -t tmpfs -o size=224K,mode=0777 tmpfs ${TFTPDIR}
 df -h ${TFTPDIR}
 ##############################################
 
@@ -84,6 +87,29 @@ bin/tftpd_test 1234 &
 sleep 1
 ${TFTP} -m binary -c get zero.dat zero.dat && exit 1
 wait
+
+##############################################
+dd if=bin/tftpd_test of=test64k.dat bs=1024 count=64
+
+#---------------------------------------------
+bin/tftpd_test 1234 &
+sleep 1
+./tftpy_client.py --host=127.0.0.1 --port=1234 --tsize --blksize=16384 --upload=test64k.dat --input=test64k.dat
+wait
+
+#---------------------------------------------
+bin/tftpd_test 1234 &
+sleep 1
+./tftpy_client.py --host=127.0.0.1 --port=1234 --tsize --blksize=32768 --upload=test64k.dat --input=test64k.dat
+wait
+
+#---------------------------------------------
+bin/tftpd_test 1234 &
+sleep 1
+./tftpy_client.py --host=127.0.0.1 --port=1234 --tsize --blksize=65536 --upload=test64k.dat --input=test64k.dat
+wait
+
+##############################################
 
 ##############################################
 # NOTE we start our an own client
