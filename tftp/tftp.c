@@ -41,8 +41,8 @@ char tftp_rcsid[] = "$Id: tftp.c,v 1.10 2000/07/22 19:06:29 dholland Exp $";
 /*
  * TFTP User Program -- Protocol Machines
  */
-#include "tftpsubs.h"
 #include "../version.h"
+#include "tftpsubs.h"
 
 #include <errno.h>
 #include <netinet/in.h>
@@ -149,7 +149,7 @@ void sendfile(int fd, char *name, char *mode)
 
 #ifndef NDEBUG
         // NOTE: test retransmit 2 time each odd block only! CK
-        if ((debug &&  ((block % 2) == 1))) {
+        if ((debug && ((block % 2) == 1))) {
             (void)sendto(f, dp, size + 4, 0, (struct sockaddr *)&from, fromlen);
             (void)sendto(f, dp, size + 4, 0, (struct sockaddr *)&from, fromlen);
         }
@@ -160,8 +160,7 @@ void sendfile(int fd, char *name, char *mode)
             alarm(rexmtval);
             do {
                 fromlen = sizeof(from);
-                n = recvfrom(f, ackbuf, sizeof(ackbuf), 0,
-                             (struct sockaddr *)&from, &fromlen);
+                n = recvfrom(f, ackbuf, sizeof(ackbuf), 0, (struct sockaddr *)&from, &fromlen);
             } while (n <= 0);
             alarm(0);
             if (n < 0) {
@@ -261,8 +260,7 @@ void recvfile(int fd, char *name, char *mode)
             alarm(rexmtval);
             do {
                 fromlen = sizeof(from);
-                n = recvfrom(f, dp, PKTSIZE, 0, (struct sockaddr *)&from,
-                             &fromlen);
+                n = recvfrom(f, dp, PKTSIZE, 0, (struct sockaddr *)&from, &fromlen);
             } while (n <= 0);
             alarm(0);
             if (n < 0) {
@@ -366,12 +364,11 @@ void nak(int error)
         pe->e_msg = strerror(error - 100);
         tp->th_code = EUNDEF;
     }
-    strcpy(tp->th_msg, pe->e_msg);
+    (void)strncpy(tp->th_msg, pe->e_msg, PKTSIZE);
     length = strlen(pe->e_msg) + 4;
     if (trace)
         tpacket("sent", tp, length);
-    if (sendto(f, ackbuf, length, 0, (struct sockaddr *)&from, fromlen) !=
-        length)
+    if (sendto(f, ackbuf, length, 0, (struct sockaddr *)&from, fromlen) != length)
         perror("nak");
 }
 
@@ -421,8 +418,8 @@ void printstats(const char *direction, unsigned long amount)
 {
     double delta;
     /* compute delta in 1/10's second units */
-    delta = ((tstop.tv_sec * 10.) + (tstop.tv_usec / 100000)) -
-            ((tstart.tv_sec * 10.) + (tstart.tv_usec / 100000));
+    delta =
+        ((tstop.tv_sec * 10.) + (tstop.tv_usec / 100000)) - ((tstart.tv_sec * 10.) + (tstart.tv_usec / 100000)); // NOLINT
     delta = delta / 10.; /* back to seconds */
     printf("%s %ld bytes in %.1f seconds", direction, amount, delta);
     if (verbose)

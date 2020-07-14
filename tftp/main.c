@@ -31,9 +31,8 @@
  * SUCH DAMAGE.
  */
 
-char copyright[] =
-    "@(#) Copyright (c) 1983 Regents of the University of California.\n"
-    "All rights reserved.\n";
+char copyright[] = "@(#) Copyright (c) 1983 Regents of the University of California.\n"
+                   "All rights reserved.\n";
 
 /*
  * From: @(#)main.c	5.10 (Berkeley) 3/1/91
@@ -47,20 +46,19 @@ char main_rcsid[] = "$Id: main.c,v 1.15 2000/07/22 19:06:29 dholland Exp $";
  */
 #include "tftpsubs.h" /* for mysignal() */
 
-#include <netinet/in.h>
-#include <sys/file.h>
-#include <sys/socket.h>
-#include <sys/types.h>
-
 #include <arpa/inet.h>
 #include <ctype.h>
 #include <errno.h>
 #include <netdb.h>
+#include <netinet/in.h>
 #include <setjmp.h>
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/file.h>
+#include <sys/socket.h>
+#include <sys/types.h>
 #include <unistd.h>
 
 #define TIMEOUT 1 /* secs between rexmt's */
@@ -76,8 +74,7 @@ sigjmp_buf toplevel;
 void sendfile(int fd, char *name, char *modestr);
 void recvfile(int fd, char *name, char *modestr);
 
-static int connected =
-    AF_UNSPEC; /* If non-zero, contains active address family! */
+static int connected = AF_UNSPEC; /* If non-zero, contains active address family! */
 static char service[NI_MAXSERV] = "tftp";
 static char mode[32];
 static char line[200];
@@ -86,7 +83,7 @@ static char *margv[20];
 static const char *prompt = "tftp";
 static struct servent *sp;
 
-static void intr(int);
+static void intr(int ignore);
 
 void makeargv(void);
 void command(int top);
@@ -304,7 +301,6 @@ void modecmd(int argc, char *argv[])
             sep = " | ";
     }
     printf(" ]\n");
-    return;
 }
 
 void setbinary(int argc, char *argv[])
@@ -419,7 +415,7 @@ void put(int argc, char *argv[])
     ccp = targ + strlen(targ);
     *ccp++ = '/';
     for (n = 1; n < argc - 1; n++) {
-        strcpy(ccp, tail(argv[n]));
+        (void)strcpy(ccp, tail(argv[n])); // NOLINT
         fd = open(argv[n], O_RDONLY);
         if (fd < 0) {
             fprintf(stderr, "tftp: ");
@@ -487,14 +483,12 @@ void get(int argc, char *argv[])
 
             status = getaddrinfo(argv[n], service, &hints, &aiptr);
             if (status) {
-                fprintf(stderr, "tftp: %s: %s\n", argv[n],
-                        gai_strerror(status));
+                fprintf(stderr, "tftp: %s: %s\n", argv[n], gai_strerror(status));
                 continue;
             }
 
             ai = aiptr;
-            while (ai && (ai->ai_family != AF_INET) &&
-                   (ai->ai_family != AF_INET6))
+            while (ai && (ai->ai_family != AF_INET) && (ai->ai_family != AF_INET6))
                 ai = ai->ai_next;
 
             if (ai == NULL) {
@@ -520,8 +514,7 @@ void get(int argc, char *argv[])
                 return;
             }
             if (verbose)
-                printf("getting from %s:%s to %s [%s]\n", hostname, src, cp,
-                       mode);
+                printf("getting from %s:%s to %s [%s]\n", hostname, src, cp, mode);
 
             recvfile(fd, src, mode);
             break;
@@ -606,10 +599,8 @@ void status(int argc, char *argv[])
         printf("Connected to %s.\n", hostname);
     else
         printf("Not connected.\n");
-    printf("Mode: %s Verbose: %s Tracing: %s\n", mode, verbose ? "on" : "off",
-           trace ? "on" : "off");
-    printf("Rexmt-interval: %d seconds, Max-timeout: %d seconds\n", rexmtval,
-           maxtimeout);
+    printf("Mode: %s Verbose: %s Tracing: %s\n", mode, verbose ? "on" : "off", trace ? "on" : "off");
+    printf("Rexmt-interval: %d seconds, Max-timeout: %d seconds\n", rexmtval, maxtimeout);
 }
 
 static void intr(int ignore)
@@ -726,10 +717,10 @@ void makeargv(void)
     *argp++ = 0;
 }
 
-void quit(int ign1, char *ign2[])
+void quit(int argc, char *argv[])
 {
-    (void)ign1;
-    (void)ign2;
+    (void)argc;
+    (void)argv;
     exit(0);
 }
 
@@ -759,18 +750,18 @@ void help(int argc, char *argv[])
     }
 }
 
-void settrace(int ign1, char *ign2[])
+void settrace(int argc, char *argv[])
 {
-    (void)ign1;
-    (void)ign2;
+    (void)argc;
+    (void)argv;
     trace = !trace;
     printf("Packet tracing %s.\n", trace ? "on" : "off");
 }
 
-void setverbose(int ign1, char *ign2[])
+void setverbose(int argc, char *argv[])
 {
-    (void)ign1;
-    (void)ign2;
+    (void)argc;
+    (void)argv;
     verbose = !verbose;
     printf("Verbose mode %s.\n", verbose ? "on" : "off");
 }

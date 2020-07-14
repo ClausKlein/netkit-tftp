@@ -34,7 +34,7 @@ find_package(Boost REQUIRED)
 # Set NETKIT_TFTP_MASTER_PROJECT to ON if we are building netkit-tftp
 #---------------------------------------------------------------------------------------
 # Check if netkit-tftp is being used directly or via add_subdirectory, but allow overriding
-if(NOT NETKIT_TFTP_MASTER_PROJECT)
+if(NOT DEFINED NETKIT_TFTP_MASTER_PROJECT)
     if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
         message(STATUS "${CMAKE_CURRENT_SOURCE_DIR} == ${CMAKE_SOURCE_DIR} => NETKIT_TFTP_MASTER_PROJECT")
         set(NETKIT_TFTP_MASTER_PROJECT ON)
@@ -64,8 +64,14 @@ if(asio_CONFIG)
     message(STATUS "Found ${asio_CONFIG}")
 endif()
 
-add_subdirectory(tftp)
-add_subdirectory(tftpd)
+
+#TBD set(CMAKE_C_STANDARD_INCLUDE_DIRECTORIES ${CMAKE_CURRENT_SOURCE_DIR}/include)
+
+
+if(NOT CMAKE_CROSSCOMPILING AND NETKIT_TFTP_TESTS)
+    add_subdirectory(tftp)
+    add_subdirectory(tftpd)
+endif()
 
 
 # asio sample
@@ -81,6 +87,7 @@ add_library(tftpd async_tftpd_server.cpp async_tftpd_server.hpp tftpd.hpp
 )
 add_library(tftpd::tftpd ALIAS tftpd)
 target_link_libraries(tftpd PUBLIC asio::standalone Threads::Threads)
+#TBD target_include_directories(tftpd SYSTEM PRIVATE include)
 target_include_directories(tftpd PRIVATE ${Boost_INCLUDE_DIRS})
 target_include_directories(tftpd PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
@@ -107,6 +114,7 @@ if(NETKIT_TFTP_TESTS)
     enable_testing()
 
     add_executable(option_test option_test.cpp async_tftpd_server.hpp)
+    #TBD target_include_directories(option_test SYSTEM PRIVATE include)
     target_link_libraries(option_test tftpd)
     add_test(NAME option_test COMMAND option_test)
 

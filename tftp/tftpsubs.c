@@ -72,8 +72,8 @@ struct bf
 } bfs[2];
 
 /* Values for bf.counter  */
-#define BF_ALLOC -3 /* alloc'd but not yet filled */
-#define BF_FREE -2  /* free */
+#define BF_ALLOC (-3) /* alloc'd but not yet filled */
+#define BF_FREE (-2)  /* free */
 /* [-1 .. SEGSIZE] = size of data in the data buffer */
 
 static int nextone; /* index of next buffer to use */
@@ -93,7 +93,7 @@ int prevchar = -1; /* putbuf: previous char (cr check) */
 /* zero for write-behind, one for read-head */
 struct tftphdr *rw_init(int x)
 {
-    newline = 0;               /* init crlf flag */
+    newline = 0; /* init crlf flag */
     prevchar = -1;
     bfs[0].counter = BF_ALLOC; /* pass out the first buffer */
     current = 0;
@@ -105,8 +105,7 @@ struct tftphdr *rw_init(int x)
 /* Have emptied current buffer by sending to net and getting ack.
    Free it and return next buffer filled with data.
  */
-ssize_t readit(FILE *file, struct tftphdr **dpp,
-           int convert /* if true, convert to ascii */)
+ssize_t readit(FILE *file, struct tftphdr **dpp, int convert /* if true, convert to ascii */)
 {
     struct bf *b;
 
@@ -127,7 +126,7 @@ ssize_t readit(FILE *file, struct tftphdr **dpp,
  */
 void read_ahead(FILE *file, int convert /* if true, convert to ascii */)
 {
-    register int i;
+    register unsigned i;
     register char *p;
     register int c;
     struct bf *b;
@@ -172,15 +171,15 @@ void read_ahead(FILE *file, int convert /* if true, convert to ascii */)
    from the queue.  Calls write_behind only if next buffer not
    available.
  */
-ssize_t writeit(FILE *file, struct tftphdr **dpp, size_t ct, int convert)
+ssize_t writeit(FILE *file, struct tftphdr **dpp, size_t count, int convert)
 {
-    bfs[current].counter = ct;           /* set size of data to write */
+    bfs[current].counter = count;        /* set size of data to write */
     current = !current;                  /* switch to other buffer */
     if (bfs[current].counter != BF_FREE) /* if not free */
         write_behind(file, convert);     /* flush it */
     bfs[current].counter = BF_ALLOC;     /* mark as alloc'd */
     *dpp = (struct tftphdr *)bfs[current].buf;
-    return ct; /* this is a lie of course */
+    return count; /* this is a lie of course */
 }
 
 /*
@@ -255,8 +254,7 @@ void synchnet(int f /* socket to flush */, int trace)
         if (i) {
             j++;
             fromlen = sizeof from;
-            (void)recvfrom(f, rbuf, sizeof(rbuf), 0, (struct sockaddr *)&from,
-                           &fromlen);
+            (void)recvfrom(f, rbuf, sizeof(rbuf), 0, (struct sockaddr *)&from, &fromlen);
         } else {
             if (j && trace) {
                 printf("discarded %d packets\n", j);

@@ -17,7 +17,7 @@ std::string tftpd::receive_file(const char *rootdir, short port, std::function<v
     // make sure the rootdir exists
     std::string mkdir("/bin/mkdir -p ");
     mkdir.append(rootdir);
-    (void) system(mkdir.c_str());   // we hope the best and continue! CK
+    (void)system(mkdir.c_str()); // we hope the best and continue! CK
 
     io_context.run(); // the server runs here ...
 

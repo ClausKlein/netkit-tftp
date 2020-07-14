@@ -98,9 +98,8 @@ $(BUILD_DIR): GNUmakefile
 	mkdir -p $@
 
 
-# NOTE: we do not format the orig c file! CK
 format: .clang-format
-	find . -type f \( -name '*.hxx' -o -name '*.hpp' -o -name '*.cxx' -o -name '*.cpp' \) -print0 | xargs -0 clang-format -style=file -i
+	find . -type f \( -name '*.h' -o -name '*.hpp' -o -name '*.c' -o -name '*.cpp' \) -print0 | xargs -0 clang-format -style=file -i
 
 
 show: setup

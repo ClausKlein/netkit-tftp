@@ -4,6 +4,7 @@
 
 #ifdef __cplusplus
 #    include <boost/current_function.hpp>
+
 #    include <cstdint>
 #    include <cstdio>
 #    define _Bool bool
@@ -14,19 +15,19 @@ constexpr int ERRNO_OFFSET{100};
 #    define _Bool int
 #endif
 
-#define TFTP_HEADER (2 * sizeof(uint16_t)) /* should be moved to tftp.h */
-#define PKTSIZE (SEGSIZE + TFTP_HEADER)    /* should be moved to tftp.h */
-#define MAX_SEGSIZE 65464                  /* RFC2348 */
-#define MAX_PKTSIZE (MAX_SEGSIZE + TFTP_HEADER)
+#define TFTP_HEADER (2 * sizeof(short)) /* should be moved to tftp.h */
+#define PKTSIZE (SEGSIZE + TFTP_HEADER) /* should be moved to tftp.h */
+#define MAXSEGSIZE 65464UL              /* RFC2348 */
+#define MAXPKTSIZE (MAXSEGSIZE + TFTP_HEADER)
 
 #ifndef OACK
-#define OACK 6
+#    define OACK 6
 #endif
 #ifndef EOPTNEG
-#define EOPTNEG 8
+#    define EOPTNEG 8
 #endif
 
-void initsock(int);
+void initsock(int /*af*/);
 void synchnet(int f, _Bool trace);
 struct tftphdr *rw_init(int /*x*/);
 static inline struct tftphdr *w_init() { return rw_init(0); } /* write-behind */

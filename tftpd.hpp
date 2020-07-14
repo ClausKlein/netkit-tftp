@@ -23,7 +23,7 @@
 
 #include <chrono>
 #include <cstdlib>
-#include <cstring> // strcpy still used! CK
+#include <cstring> // strncpy still used! CK
 #include <functional>
 #include <iostream>
 #include <memory>
@@ -46,7 +46,7 @@ int tftp(const std::vector<char> &rxbuffer, FILE *&file, std::string &file_path,
 constexpr int TIMEOUT{1};
 constexpr int rexmtval{TIMEOUT};
 constexpr int maxtimeout{5 * TIMEOUT};
-constexpr uintmax_t max_segsize{MAX_SEGSIZE}; // RFC2348
+constexpr uintmax_t max_segsize{MAXSEGSIZE}; // RFC2348
 
 struct errmsg
 {
@@ -190,7 +190,7 @@ protected:
         err_msg.resize(std::min(err_msg.size(), PKTSIZE - TFTP_HEADER));
         size_t length = err_msg.size() + extra;
         // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
-        strcpy(tp->th_msg, err_msg.c_str());
+        (void)strncpy(tp->th_msg, err_msg.c_str(), PKTSIZE);
         txbuf.resize(std::min(length, PKTSIZE));
 
         do_send_error(txbuf);
@@ -283,7 +283,7 @@ public:
 
         // Run an asynchronous read operation with a timeout.
         restart_timeout();
-        socket_.async_receive_from(asio::buffer(dp_, MAX_PKTSIZE), clientEndpoint_,
+        socket_.async_receive_from(asio::buffer(dp_, MAXPKTSIZE), clientEndpoint_,
                                    [this](std::error_code ec, std::size_t bytes_recvd) {
                                        if (ec) {
                                            syslog(LOG_ERR, "tftpd: read data: %s\n", ec.message().c_str());
@@ -460,7 +460,7 @@ private:
     struct tftphdr *dp_ = {nullptr};
     udp::endpoint clientEndpoint_;
     char ackbuf_[PKTSIZE] = {};
-    char rxbuf_[MAX_PKTSIZE] = {};
+    char rxbuf_[MAXPKTSIZE] = {};
     volatile u_int16_t block = {0};
     size_t percent_ = {0};
 };

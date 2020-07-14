@@ -31,9 +31,8 @@
  * SUCH DAMAGE.
  */
 
-char copyright[] =
-    "@(#) Copyright (c) 1983 Regents of the University of California.\n"
-    "All rights reserved.\n";
+char copyright[] = "@(#) Copyright (c) 1983 Regents of the University of California.\n"
+                   "All rights reserved.\n";
 
 /*
  * From: @(#)tftpd.c	5.13 (Berkeley) 2/26/91
@@ -45,26 +44,25 @@ char rcsid[] = "$Id: tftpd.c,v 1.20 2000/07/29 18:37:21 dholland Exp $";
  *
  * This version includes many modifications by Jim Guyton <guyton@rand-unix>
  */
-#include "tftpsubs.h"
 #include "../version.h"
+#include "tftpsubs.h"
 
+#include <ctype.h>
+#include <errno.h>
 #include <fcntl.h>
+#include <grp.h>
+#include <netdb.h>
 #include <netinet/in.h>
+#include <pwd.h>
+#include <setjmp.h>
 #include <signal.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-
-#include <ctype.h>
-#include <errno.h>
-#include <grp.h>
-#include <netdb.h>
-#include <pwd.h>
-#include <setjmp.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include <syslog.h>
 #include <unistd.h>
 
@@ -76,7 +74,7 @@ static void nak(int error);
 static void sendfile(struct formats *pf);
 static void recvfile(struct formats *pf);
 
-static int validate_access(const char *, int);
+static int validate_access(const char * /*filename*/, int /*mode*/);
 
 static int peer;
 static int rexmtval = TIMEOUT;
@@ -166,8 +164,7 @@ int main(int ac, char **av)
                  * a single request from a single client.
                  */
                 k = sizeof(from);
-                i = recvfrom(0, buf, sizeof(buf), 0, (struct sockaddr *)&from,
-                             &k);
+                i = recvfrom(0, buf, sizeof(buf), 0, (struct sockaddr *)&from, &k);
                 if (i > 0) {
                     n = i;
                     fromlen = k;
@@ -187,10 +184,8 @@ int main(int ac, char **av)
         struct passwd *pwd = getpwnam("nobody");
         if (pwd) {
             initgroups(pwd->pw_name, pwd->pw_gid);
-            setgid(
-                pwd->pw_gid); // NOLINT(clang-analyzer-security.insecureAPI.UncheckedReturn)
-            setuid(
-                pwd->pw_uid); // NOLINT(clang-analyzer-security.insecureAPI.UncheckedReturn)
+            (void)setgid(pwd->pw_gid); // NOLINT(clang-analyzer-security.insecureAPI.UncheckedReturn)
+            (void)setuid(pwd->pw_uid); // NOLINT(clang-analyzer-security.insecureAPI.UncheckedReturn)
         }
         (void)seteuid(0); /* NOLINT: this should fail! */
         if (!getuid() || !geteuid()) {
@@ -214,11 +209,8 @@ int main(int ac, char **av)
 
     if (dobind) {
         /* Was the wildcard address contained in the socket? */
-        if (((sn.ss_family == AF_INET) &&
-             ((struct sockaddr_in *)&sn)->sin_addr.s_addr == INADDR_ANY) ||
-            ((sn.ss_family == AF_INET6) &&
-             IN6_IS_ADDR_UNSPECIFIED(
-                 &((struct sockaddr_in6 *)&sn)->sin6_addr))) {
+        if (((sn.ss_family == AF_INET) && ((struct sockaddr_in *)&sn)->sin_addr.s_addr == INADDR_ANY) ||
+            ((sn.ss_family == AF_INET6) && IN6_IS_ADDR_UNSPECIFIED(&((struct sockaddr_in6 *)&sn)->sin6_addr))) {
             /* Implicit binding suffices for wildcard addresses. */
             dobind = 0;
         }
@@ -355,14 +347,12 @@ static int validate_access(const char *filename, int mode)
      * prevent tricksters from getting around the directory restrictions
      */
     if (!strncmp(filename, "../", 3)) {
-        syslog(LOG_WARNING, "tftpd: Blocked illegal request for %s\n",
-               filename);
+        syslog(LOG_WARNING, "tftpd: Blocked illegal request for %s\n", filename);
         return EACCESS;
     }
     for (cp = filename + 1; *cp; cp++) {
         if (*cp == '.' && strncmp(cp - 1, "/../", 4) == 0) {
-            syslog(LOG_WARNING, "tftpd: Blocked illegal request for %s\n",
-                   filename);
+            syslog(LOG_WARNING, "tftpd: Blocked illegal request for %s\n", filename);
             return (EACCESS);
         }
     }
@@ -396,8 +386,7 @@ static int validate_access(const char *filename, int mode)
             return (EACCESS);
     }
 
-    fd = open(filename, mode == RRQ ? O_RDONLY : O_WRONLY | O_TRUNC | O_CREAT,
-              0600);
+    fd = open(filename, mode == RRQ ? O_RDONLY : O_WRONLY | O_TRUNC | O_CREAT, 0600);
     if (fd < 0)
         return (errno + 100);
     file = fdopen(fd, (mode == RRQ) ? "r" : "w");
@@ -445,8 +434,7 @@ static void sendfile(struct formats *pf)
         (void)sigsetjmp(timeoutbuf, 1);
 
     send_data:
-        if (sendto(peer, dp, size + 4, 0, (struct sockaddr *)&from, fromlen) !=
-            size + 4) {
+        if (sendto(peer, dp, size + 4, 0, (struct sockaddr *)&from, fromlen) != size + 4) {
             syslog(LOG_ERR, "tftpd: write: %m\n");
             goto abort;
         }
@@ -508,8 +496,7 @@ static void recvfile(struct formats *pf)
         block++;
         (void)sigsetjmp(timeoutbuf, 1);
     send_ack:
-        if (sendto(peer, ackbuf, 4, 0, (struct sockaddr *)&from, fromlen) !=
-            4) {
+        if (sendto(peer, ackbuf, 4, 0, (struct sockaddr *)&from, fromlen) != 4) {
             syslog(LOG_ERR, "tftpd: write: %m\n");
             goto abort;
         }
@@ -557,11 +544,10 @@ static void recvfile(struct formats *pf)
     alarm(rexmtval);
     n = recv(peer, buf, sizeof(buf), 0); /* normally times out and quits */
     alarm(0);
-    if (n >= 4 &&                /* if read some data */
-        dp->th_opcode == DATA && /* and got a data block */
-        block == dp->th_block) { /* then my last ack was lost */
-        (void)sendto(peer, ackbuf, 4, 0, (struct sockaddr *)&from,
-                     fromlen); /* resend final ack */
+    if (n >= 4 &&                                                            /* if read some data */
+        dp->th_opcode == DATA &&                                             /* and got a data block */
+        block == dp->th_block) {                                             /* then my last ack was lost */
+        (void)sendto(peer, ackbuf, 4, 0, (struct sockaddr *)&from, fromlen); /* resend final ack */
     }
 abort:
     return;
@@ -603,11 +589,10 @@ static void nak(int error)
         pe->e_msg = strerror(error - 100);
         tp->th_code = EUNDEF; /* set 'undef' errorcode */
     }
-    strcpy(tp->th_msg, pe->e_msg);
+    (void)strncpy(tp->th_msg, pe->e_msg, PKTSIZE);
     length = strlen(pe->e_msg);
     tp->th_msg[length] = '\0';
     length += 5;
-    if (sendto(peer, buf, length, 0, (struct sockaddr *)&from, fromlen) !=
-        length)
+    if (sendto(peer, buf, length, 0, (struct sockaddr *)&from, fromlen) != length)
         syslog(LOG_ERR, "nak: %m\n");
 }

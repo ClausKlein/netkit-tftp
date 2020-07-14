@@ -82,7 +82,7 @@ int main()
     printf("%s segsize:%lu tsize:%ld timeout:%lu\n", path.c_str(), tftpd::g_segsize, tftpd::g_tsize, tftpd::g_timeout);
     assert(!err);
     assert(!ackbuf.empty());
-    assert(tftpd::g_segsize == MAX_SEGSIZE);
+    assert(tftpd::g_segsize == MAXSEGSIZE);
     assert(tftpd::g_timeout == 1000); // NOTE: ms
 
     const char unknown[] = {"\0\1unknown_mode.dat\0netascii\0"};

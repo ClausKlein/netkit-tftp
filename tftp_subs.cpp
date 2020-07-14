@@ -61,14 +61,14 @@
 constexpr size_t max_buffer{2};
 struct buffer
 {
-    ssize_t counter;       /* size of data in buffer, or flag */
-    char buf[MAX_PKTSIZE]; /* RFC2348 room for data packet */
+    ssize_t counter;      /* size of data in buffer, or flag */
+    char buf[MAXPKTSIZE]; /* RFC2348 room for data packet */
 };
 static struct buffer bfs[max_buffer];
 
 /* Values for buffer.counter  */
-#define BF_ALLOC -3 /* alloc'd but not yet filled */
-#define BF_FREE -2  /* free */
+#define BF_ALLOC (-3) /* alloc'd but not yet filled */
+#define BF_FREE (-2)  /* free */
 /* [-1 .. SEGSIZE] = size of data in the data buffer */
 
 static int nextone; /* index of next buffer to use */

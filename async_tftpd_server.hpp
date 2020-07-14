@@ -7,7 +7,6 @@
 #define BOOST_CURRENT_FUNCTION static_cast<const char *>(__PRETTY_FUNCTION__)
 #define BOOST_THROW_EXCEPTION_CURRENT_FUNCTION BOOST_CURRENT_FUNCTION
 
-
 namespace tftpd {
 
 /// receive 1 file with tftp protocol
