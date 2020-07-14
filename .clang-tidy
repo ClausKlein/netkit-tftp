@@ -1,18 +1,47 @@
----
-Checks: "-*,\
-cert-*,\
-misc-*,\
-modernize-*,\
--modernize-raw-string-literal,\
--modernize-return-braced-init-list,\
--modernize-use-auto,\
--modernize-use-default-member-init,\
--modernize-use-equals-default,\
--modernize-use-equals-delete,\
--modernize-use-trailing-return-type,\
-performance-*,\
-readability-*,\
-cppcoreguidelines-*,\
-"
-HeaderFilterRegex: '.*'
-...
+#
+#NOTE: allway check first the cert rules only! CK
+#
+Checks:
+'-*,
+    boost-*,
+    bugprone-*,
+    cert-*,
+    -cert-env33-c,
+    -cert-err58-cpp,
+    clang-analyzer-*,
+    -clang-analyzer-deadcode.DeadStores,
+    cppcoreguidelines-*,
+    -cppcoreguidelines-owning-memory,
+    -cppcoreguidelines-pro-bounds-*,
+    -cppcoreguidelines-pro-bounds-array-to-pointer-decay,
+    -cppcoreguidelines-pro-type-vararg,
+    -cppcoreguidelines-special-member-functions,
+    misc-*,
+    -misc-unused-parameters,
+    modernize-make-shared,
+    -modernize-redundant-void-arg,
+    -modernize-use-*,
+    -modernize-use-default-member-init,
+    -modernize-use-equals-default,
+    -modernize-use-using,
+    performance-*,
+    portability-*,
+    readability-*,
+    -readability-avoid-*,
+    -readability-braces*,
+    -readability-braces-around-statements,
+    -readability-implicit-bool-conversion,
+    -readability-redundant-smartptr-get,
+    -readability-simplify*,
+    -readability-static-accessed-through-instance,
+'
+
+#
+#TODO: path to your project headers only! CK
+#
+HeaderFilterRegex:
+    '.*'
+
+#TBD: this is realy pedantic! CK
+WarningsAsErrors:
+    'clang-diagnostic-error'
