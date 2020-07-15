@@ -364,7 +364,7 @@ void nak(int error)
         pe->e_msg = strerror(error - 100);
         tp->th_code = EUNDEF;
     }
-    (void)strncpy(tp->th_msg, pe->e_msg, PKTSIZE);
+    (void)strncpy(tp->th_msg, pe->e_msg, SEGSIZE);
     length = strlen(pe->e_msg) + 4;
     if (trace)
         tpacket("sent", tp, length);

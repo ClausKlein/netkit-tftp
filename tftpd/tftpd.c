@@ -589,7 +589,7 @@ static void nak(int error)
         pe->e_msg = strerror(error - 100);
         tp->th_code = EUNDEF; /* set 'undef' errorcode */
     }
-    (void)strncpy(tp->th_msg, pe->e_msg, PKTSIZE);
+    (void)strncpy(tp->th_msg, pe->e_msg, SEGSIZE);
     length = strlen(pe->e_msg);
     tp->th_msg[length] = '\0';
     length += 5;

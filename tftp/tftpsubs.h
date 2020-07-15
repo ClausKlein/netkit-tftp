@@ -15,10 +15,12 @@ constexpr int ERRNO_OFFSET{100};
 #    define _Bool int
 #endif
 
-#define TFTP_HEADER (2 * sizeof(short)) /* should be moved to tftp.h */
-#define PKTSIZE (SEGSIZE + TFTP_HEADER) /* should be moved to tftp.h */
-#define MAXSEGSIZE 65464UL              /* RFC2348 */
-#define MAXPKTSIZE (MAXSEGSIZE + TFTP_HEADER)
+#ifndef TFTP_HEADER
+#    define TFTP_HEADER (2 * sizeof(short)) /* should be moved to tftp.h */
+#    define PKTSIZE (SEGSIZE + TFTP_HEADER) /* should be moved to tftp.h */
+#    define MAXSEGSIZE 65464UL              /* RFC2348 */
+#    define MAXPKTSIZE (MAXSEGSIZE + TFTP_HEADER)
+#endif
 
 #ifndef OACK
 #    define OACK 6

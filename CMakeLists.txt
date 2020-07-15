@@ -65,7 +65,7 @@ if(asio_CONFIG)
 endif()
 
 
-#TBD set(CMAKE_C_STANDARD_INCLUDE_DIRECTORIES ${CMAKE_CURRENT_SOURCE_DIR}/include)
+#NO! CK set(CMAKE_C_STANDARD_INCLUDE_DIRECTORIES ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
 
 if(NOT CMAKE_CROSSCOMPILING AND NETKIT_TFTP_TESTS)
@@ -87,8 +87,7 @@ add_library(tftpd async_tftpd_server.cpp async_tftpd_server.hpp tftpd.hpp
 )
 add_library(tftpd::tftpd ALIAS tftpd)
 target_link_libraries(tftpd PUBLIC Boost::filesystem asio::standalone Threads::Threads)
-#TBD target_include_directories(tftpd SYSTEM PRIVATE include)
-#XXX target_include_directories(tftpd PRIVATE ${Boost_INCLUDE_DIRS})
+#NO! CK target_include_directories(tftpd SYSTEM PRIVATE include)
 target_include_directories(tftpd PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
   $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
@@ -114,7 +113,7 @@ if(NETKIT_TFTP_TESTS)
     enable_testing()
 
     add_executable(option_test option_test.cpp async_tftpd_server.hpp)
-    #TBD target_include_directories(option_test SYSTEM PRIVATE include)
+    #NO! CK target_include_directories(option_test SYSTEM PRIVATE include)
     target_link_libraries(option_test tftpd)
     add_test(NAME option_test COMMAND option_test)
 

@@ -190,8 +190,13 @@ protected:
         size_t extra = TFTP_HEADER + 1; // include strend '\0'
         err_msg.resize(std::min(err_msg.size(), PKTSIZE - TFTP_HEADER));
         size_t length = err_msg.size() + extra;
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wstringop-overflow"
         // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
-        (void)strncpy(tp->th_msg, err_msg.c_str(), PKTSIZE);
+        (void)strncpy(tp->th_msg, err_msg.c_str(), length);
+#pragma GCC diagnostic pop
+
         txbuf.resize(std::min(length, PKTSIZE));
 
         do_send_error(txbuf);
