@@ -20,6 +20,7 @@
 
 #include <asio/ts/buffer.hpp>
 #include <asio/ts/internet.hpp>
+#include <boost/current_function.hpp>
 
 #include <chrono>
 #include <cstdlib>

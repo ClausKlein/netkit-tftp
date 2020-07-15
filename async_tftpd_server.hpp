@@ -3,10 +3,6 @@
 #include <functional>
 #include <string>
 
-// NOTE: prevent clang-tidy warings XXX #include <boost/current_function.hpp>
-#define BOOST_CURRENT_FUNCTION static_cast<const char *>(__PRETTY_FUNCTION__)
-#define BOOST_THROW_EXCEPTION_CURRENT_FUNCTION BOOST_CURRENT_FUNCTION
-
 namespace tftpd {
 
 /// receive 1 file with tftp protocol

@@ -27,7 +27,7 @@ endfunction()
 # This variable controls whether the CMAKE_FIND_ROOT_PATH and CMAKE_SYSROOT are used by find_package().
 set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE BOTH CACHE STRING "NOTE: forced value!" FORCE)
 find_package(Threads REQUIRED)
-find_package(Boost REQUIRED)
+find_package(Boost 1.67.0 REQUIRED COMPONENTS filesystem)
 
 
 #---------------------------------------------------------------------------------------
@@ -86,9 +86,9 @@ add_library(tftpd async_tftpd_server.cpp async_tftpd_server.hpp tftpd.hpp
             tftpd_utils.cpp tftpd_options.cpp tftp_subs.cpp tftp/tftpsubs.h
 )
 add_library(tftpd::tftpd ALIAS tftpd)
-target_link_libraries(tftpd PUBLIC asio::standalone Threads::Threads)
+target_link_libraries(tftpd PUBLIC Boost::filesystem asio::standalone Threads::Threads)
 #TBD target_include_directories(tftpd SYSTEM PRIVATE include)
-target_include_directories(tftpd PRIVATE ${Boost_INCLUDE_DIRS})
+#XXX target_include_directories(tftpd PRIVATE ${Boost_INCLUDE_DIRS})
 target_include_directories(tftpd PUBLIC
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
   $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
