@@ -27,6 +27,8 @@ endfunction()
 # This variable controls whether the CMAKE_FIND_ROOT_PATH and CMAKE_SYSROOT are used by find_package().
 set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE BOTH CACHE STRING "NOTE: forced value!" FORCE)
 find_package(Threads REQUIRED)
+
+set(Boost_ROOT /usr/local/opt/boost)
 find_package(Boost 1.67.0 REQUIRED COMPONENTS filesystem)
 
 

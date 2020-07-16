@@ -162,7 +162,7 @@ protected:
      */
     void send_error(int error)
     {
-        const struct errmsg *pe;
+        const struct errmsg *pe = nullptr;
         std::vector<char> txbuf;
         txbuf.resize(PKTSIZE);
         std::string err_msg;
@@ -197,7 +197,7 @@ protected:
         (void)strncpy(tp->th_msg, err_msg.c_str(), length);
 #pragma GCC diagnostic pop
 
-        txbuf.resize(std::min(length, PKTSIZE));
+        txbuf.resize(std::min(length, (size_t)PKTSIZE));
 
         do_send_error(txbuf);
     }
@@ -215,11 +215,11 @@ protected:
                               });
     }
 
-    udp::socket socket_;
-    udp::endpoint senderEndpoint_;
-    std::shared_ptr<FILE> file_guard_;
-    std::string file_path_;
-    std::vector<char> optack_;
+    udp::socket socket_;               // NOLINT(cppcoreguidelines-non-private-member-variables-in-classes)
+    udp::endpoint senderEndpoint_;     // NOLINT(cppcoreguidelines-non-private-member-variables-in-classes)
+    std::shared_ptr<FILE> file_guard_; // NOLINT(cppcoreguidelines-non-private-member-variables-in-classes)
+    std::string file_path_;            // NOLINT(cppcoreguidelines-non-private-member-variables-in-classes)
+    std::vector<char> optack_;         // NOLINT(cppcoreguidelines-non-private-member-variables-in-classes)
 
 private:
     asio::steady_timer timer_;
@@ -443,7 +443,7 @@ public:
 
         int j = 0;
         struct sockaddr_storage from = {};
-        socklen_t fromlen;
+        socklen_t fromlen = 0;
         int s = socket_.native_handle();
 
         while (true) {

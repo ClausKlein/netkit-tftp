@@ -112,7 +112,7 @@ int tftp(const std::vector<char> &rxbuffer, FILE *&file, std::string &file_path,
         return (EBADID);
     }
 
-    const char *cp;
+    const char *cp = nullptr;
     const char *mode = nullptr;
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
     const char *filename = cp = static_cast<const char *>(tp->th_stuff);
@@ -209,8 +209,8 @@ int validate_access(std::string &filename, int mode, FILE *&file)
     using boost::algorithm::starts_with;
 
     struct stat stbuf = {};
-    int fd;
-    const char *const *dirp;
+    int fd = 0;
+    const char *const *dirp = nullptr;
 
     syslog(LOG_NOTICE, "tftpd: Validate access to file: %s\n", filename.c_str());
 

@@ -247,7 +247,7 @@ void init_opt()
  */
 void do_opt(const char *opt, const char *val, char **ackbuf_ptr)
 {
-    const struct option *po;
+    const struct option *po = nullptr;
     char *p = *ackbuf_ptr;
     assert(ackbuf_ptr != nullptr);
     assert(opt != nullptr);
@@ -257,12 +257,14 @@ void do_opt(const char *opt, const char *val, char **ackbuf_ptr)
         return;
     }
 
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg)
     syslog(LOG_NOTICE, "tftpd: %s:%s\n", opt, val);
 
     errno = 0;
-    char *vend;
+    char *vend = nullptr;
     uintmax_t v = strtoumax(val, &vend, 10); // TODO: or std::strtoul! CK
     if (*vend != 0 || errno == ERANGE) {
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg)
         syslog(LOG_ERR, "tftpd: Invallid option value (%s:%s)\n", opt, val);
         return;
     }
@@ -279,6 +281,7 @@ void do_opt(const char *opt, const char *val, char **ackbuf_ptr)
                 memcpy(p, ret_value.c_str(), retlen + 1);
                 p += retlen + 1;
             } else {
+                // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg)
                 syslog(LOG_ERR, "tftpd: Unsupported option(%s:%s)\n", opt, val);
             }
             break;

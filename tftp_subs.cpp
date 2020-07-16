@@ -71,8 +71,8 @@ static struct buffer bfs[max_buffer];
 #define BF_FREE (-2)  /* free */
 /* [-1 .. SEGSIZE] = size of data in the data buffer */
 
-static int nextone; /* index of next buffer to use */
-static int current; /* index of buffer in use */
+static size_t nextone; /* index of next buffer to use */
+static size_t current; /* index of buffer in use */
 
 /* control flags for crlf conversions */
 static bool newline = false; /* fillbuf: in middle of newline expansion */
@@ -174,11 +174,14 @@ void read_ahead(FILE *file, bool convert /* if true, convert to ascii */)
 ssize_t writeit(FILE *file, struct tftphdr **dpp, size_t count, bool convert)
 {
     ssize_t written = count;
-    bfs[current].counter = count;              /* set size of data to write */
-    current = ((current + 1) % max_buffer);    /* switch to other buffer */
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-constant-array-index)
+    bfs[current].counter = count;           /* set size of data to write */
+    current = ((current + 1) % max_buffer); /* switch to other buffer */
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-constant-array-index)
     if (bfs[current].counter != BF_FREE) {     /* if not free */
         written = write_behind(file, convert); /* flush it */
     }
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-constant-array-index)
     bfs[current].counter = BF_ALLOC; /* mark as alloc'd */
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-cstyle-cast)
     *dpp = (struct tftphdr *)bfs[current].buf;
@@ -193,26 +196,24 @@ ssize_t writeit(FILE *file, struct tftphdr **dpp, size_t count, bool convert)
  */
 ssize_t write_behind(FILE *file, bool /*convert*/)
 {
-    char *buf;
-    ssize_t count;
-    struct buffer *b;
-    struct tftphdr *dp;
-
-    b = &bfs[nextone];
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-constant-array-index)
+    struct buffer *b = &bfs[nextone];
     if (b->counter < -1) { /* anything to flush? */
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg)
         syslog(LOG_INFO, "tftpd: write() nothing to flush!\n");
         return 0; /* just nop if nothing to do */
     }
 
-    count = b->counter;   /* remember byte count */
-    b->counter = BF_FREE; /* reset flag */
+    ssize_t count = b->counter; /* remember byte count */
+    b->counter = BF_FREE;       /* reset flag */
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-cstyle-cast)
-    dp = (struct tftphdr *)b->buf;
+    struct tftphdr *dp = (struct tftphdr *)b->buf;
     nextone = ((nextone + 1) % max_buffer); /* incr for next time */
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
-    buf = dp->th_data;
+    char *buf = dp->th_data;
 
     if (count < 0) {
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg)
         syslog(LOG_ERR, "tftpd: write() invalid buffer count!\n");
         return -1; /* TBD: no nak logic! CK */
     }

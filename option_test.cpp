@@ -1,5 +1,6 @@
 ﻿#include "tftpd.hpp"
 
+#include <iostream>
 #include <string>
 #include <vector>
 
@@ -35,7 +36,8 @@ int main()
     std::vector<char> msg(test1.begin(), test1.end());
     msg.resize(PKTSIZE);
     err = tftpd::tftp(msg, fp, path, ackbuf);
-    printf("%s segsize:%lu tsize:%ld timeout:%lu\n", path.c_str(), tftpd::g_segsize, tftpd::g_tsize, tftpd::g_timeout);
+    std::cout << path << " segsize:" << tftpd::g_segsize << " tsize:" << tftpd::g_tsize << " timeout: " << tftpd::g_timeout
+              << std::endl;
     assert(!err);
     assert(!ackbuf.empty());
     assert(tftpd::g_segsize == 1047);
@@ -48,7 +50,8 @@ int main()
                          "blksize2\0"s
                          "65464\0"s};
     err = tftpd::tftp(std::vector<char>(test2.begin(), test2.end()), fp, path, ackbuf);
-    printf("%s segsize:%lu tsize:%ld timeout:%lu\n", path.c_str(), tftpd::g_segsize, tftpd::g_tsize, tftpd::g_timeout);
+    std::cout << path << " segsize:" << tftpd::g_segsize << " tsize:" << tftpd::g_tsize << " timeout: " << tftpd::g_timeout
+              << std::endl;
     assert(!err);
     assert(tftpd::g_segsize == (1 << 15));
     assert(tftpd::g_tsize == 0);
@@ -60,7 +63,8 @@ int main()
                          "utimeout\0"s
                          "10000\0"s}; // us!
     err = tftpd::tftp(std::vector<char>(test3.begin(), test3.end()), fp, path, ackbuf);
-    printf("%s segsize:%lu tsize:%ld timeout:%lu\n", path.c_str(), tftpd::g_segsize, tftpd::g_tsize, tftpd::g_timeout);
+    std::cout << path << " segsize:" << tftpd::g_segsize << " tsize:" << tftpd::g_tsize << " timeout: " << tftpd::g_timeout
+              << std::endl;
     assert(!err);
     assert(tftpd::g_segsize == 1024);
     assert(tftpd::g_timeout == 10); // NOTE: ms
@@ -79,7 +83,8 @@ int main()
                          "utimeout\0"s
                          "999\0"s}; // us!
     err = tftpd::tftp(std::vector<char>(test4.begin(), test4.end()), fp, path, ackbuf);
-    printf("%s segsize:%lu tsize:%ld timeout:%lu\n", path.c_str(), tftpd::g_segsize, tftpd::g_tsize, tftpd::g_timeout);
+    std::cout << path << " segsize:" << tftpd::g_segsize << " tsize:" << tftpd::g_tsize << " timeout: " << tftpd::g_timeout
+              << std::endl;
     assert(!err);
     assert(!ackbuf.empty());
     assert(tftpd::g_segsize == MAXSEGSIZE);

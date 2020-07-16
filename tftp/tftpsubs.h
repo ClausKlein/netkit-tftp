@@ -17,9 +17,11 @@ constexpr int ERRNO_OFFSET{100};
 
 #ifndef TFTP_HEADER
 #    define TFTP_HEADER (2 * sizeof(short)) /* should be moved to tftp.h */
-#    define PKTSIZE (SEGSIZE + TFTP_HEADER) /* should be moved to tftp.h */
-#    define MAXSEGSIZE 65464UL              /* RFC2348 */
-#    define MAXPKTSIZE (MAXSEGSIZE + TFTP_HEADER)
+#    ifndef PKTSIZE
+#        define PKTSIZE (SEGSIZE + TFTP_HEADER) /* should be moved to tftp.h */
+#        define MAXSEGSIZE 65464UL              /* RFC2348 */
+#        define MAXPKTSIZE (MAXSEGSIZE + TFTP_HEADER)
+#    endif
 #endif
 
 #ifndef OACK
