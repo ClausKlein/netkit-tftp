@@ -1,4 +1,8 @@
-find_package(Threads REQUIRED)
-find_package(Boost 1.67.0 REQUIRED COMPONENTS filesystem)
+include(CMakeFindDependencyMacro)
 
-include(${CMAKE_CURRENT_LIST_DIR}/tftpd-targets.cmake)
+find_dependency(Threads)
+find_dependency(Boost 1.67.0 COMPONENTS filesystem)
+
+if(NOT TARGET tftpd::tftpd)
+    include(${CMAKE_CURRENT_LIST_DIR}/tftpd-targets.cmake)
+endif()

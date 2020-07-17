@@ -1,17 +1,29 @@
 #!/bin/bash -uex
-TFTP="/usr/bin/tftp -v -4 127.0.0.1 1234"
+
+# NOTE: not loger used: tftp-hpa 5.2
+# Usage: tftp [-4][-6][-v][-V][-l][-m mode][-w size][-B blocksize] [-R port:port] [host [port]] [-c command]
+#XXX TFTP="/usr/bin/tftp -v -4 127.0.0.1 1234 -m binary"
+
+TFTP="./tftpy_client.py --host=127.0.0.1 --port=1234 --tsize --quiet"
 TFTPDIR=/tmp/tftpboot
 
 cd ${PWD}
 
+UNAME=`uname`
 script_dir=`dirname "$0"`
 ln -sf ${script_dir}/tftpy_client.py .
 
-sudo umount -t tmpfs ${TFTPDIR} || echo "OK"
-rm -rf ${TFTPDIR}
+##############################################
+if test "${UNAME}" == "Linux"; then
+    sudo umount -t tmpfs ${TFTPDIR} || echo "OK"
+    sudo rm -rf ${TFTPDIR}
+else
+    rm -rf ${TFTPDIR}
+fi
+##############################################
 
 ##############################################
-# upload should fail, no tftpboot dir
+## TODO: upload should fail, no tftpboot dir
 # bin/tftpd_test 1234 &
 # sleep 1
 # ${TFTP} -m binary -c put rules.ninja zero.dat && exit 1
@@ -29,10 +41,10 @@ bin/tftpd_test 1234 &
 sleep 1
 chmod 700 ${TFTPDIR}
 sync
-${TFTP} -m binary -c get zero.dat zero.dat && exit 1
+${TFTP} --download=zero.dat && exit 1
 wait
 
-## upload should fail in secure mode if file not world writeable
+## TODO: upload should fail in secure mode if file not world writeable
 # bin/tftpd_test 1234 &
 # ${TFTP} -m binary -c put rules.ninja zero.dat && exit 1
 # wait
@@ -41,21 +53,24 @@ wait
 chmod 777 ${TFTPDIR}
 bin/tftpd_test 1234 &
 sleep 1
-${TFTP} -m binary -c get none.dat && exit 1
+${TFTP} --download=none.dat && exit 1
 wait
 
 
 ##############################################
-sudo mount -t tmpfs -o size=224K,mode=0777 tmpfs ${TFTPDIR}
-df -h ${TFTPDIR}
+if test "${UNAME}" == "Linux"; then
+    sudo mount -t tmpfs -o size=224K,mode=0777 tmpfs ${TFTPDIR}
+    df -h ${TFTPDIR}
+fi
 ##############################################
+
 
 ##############################################
 ## test exact blocksize upload
 dd if=bin/tftpd_test of=test1block.dat bs=512 count=1
 bin/tftpd_test 1234 &
 sleep 1
-${TFTP} -m binary -c put test1block.dat
+${TFTP} --upload=test1block.dat
 diff ${TFTPDIR}/test1block.dat test1block.dat
 wait
 ##############################################
@@ -63,7 +78,7 @@ wait
 dd if=bin/tftpd_test of=test1k.dat bs=1024 count=1
 bin/tftpd_test 1234 &
 sleep 1
-${TFTP} -m binary -c put test1k.dat
+${TFTP} --upload=test1k.dat
 diff ${TFTPDIR}/test1k.dat test1k.dat
 wait
 ##############################################
@@ -72,8 +87,8 @@ wait
 dd if=bin/tftpd_test of=test16k.dat bs=1024 count=16
 bin/tftpd_test 1234 &
 sleep 1
-${TFTP} -m binary -c put test16k.dat first.dat &
-${TFTP} -m binary -c put test16k.dat second.dat &
+${TFTP} --input=test16k.dat --upload=first.dat &
+${TFTP} --input=test16k.dat --upload=second.dat &
 echo "concurend clients started! ..."
 wait
 test -f ${TFTPDIR}/first.dat && diff test16k.dat ${TFTPDIR}/first.dat
@@ -85,30 +100,31 @@ touch ${TFTPDIR}/zero.dat
 chmod 666 ${TFTPDIR}/zero.dat
 bin/tftpd_test 1234 &
 sleep 1
-${TFTP} -m binary -c get zero.dat zero.dat && exit 1
+${TFTP} --download=zero.dat && exit 1
 wait
 
 ##############################################
-dd if=bin/tftpd_test of=test64k.dat bs=1024 count=64
+if test "${UNAME}" == "Linux"; then
+    dd if=bin/tftpd_test of=test64k.dat bs=1024 count=64
 
-#---------------------------------------------
-bin/tftpd_test 1234 &
-sleep 1
-./tftpy_client.py --host=127.0.0.1 --port=1234 --tsize --blksize=16384 --upload=test64k.dat --input=test64k.dat
-wait
+    #---------------------------------------------
+    bin/tftpd_test 1234 &
+    sleep 1
+    ./tftpy_client.py --host=127.0.0.1 --port=1234 --tsize --blksize=16384 --upload=test64k.dat --input=test64k.dat
+    wait
 
-#---------------------------------------------
-bin/tftpd_test 1234 &
-sleep 1
-./tftpy_client.py --host=127.0.0.1 --port=1234 --tsize --blksize=32768 --upload=test64k.dat --input=test64k.dat
-wait
+    #---------------------------------------------
+    bin/tftpd_test 1234 &
+    sleep 1
+    ./tftpy_client.py --host=127.0.0.1 --port=1234 --tsize --blksize=32768 --upload=test64k.dat --input=test64k.dat
+    wait
 
-#---------------------------------------------
-bin/tftpd_test 1234 &
-sleep 1
-./tftpy_client.py --host=127.0.0.1 --port=1234 --tsize --blksize=65536 --upload=test64k.dat --input=test64k.dat
-wait
-
+    #---------------------------------------------
+    bin/tftpd_test 1234 &
+    sleep 1
+    ./tftpy_client.py --host=127.0.0.1 --port=1234 --tsize --blksize=65536 --upload=test64k.dat --input=test64k.dat
+    wait
+fi
 ##############################################
 
 ##############################################
@@ -116,56 +132,60 @@ wait
 ##############################################
 # normal binary upload with dublicate ack's
 # TODO: should not fail
-bin/tftpd_test 1234 &
-sleep 1
-printf "rexmt 1\nverbose\ntrace\nbinary\nput rules.ninja\n" | bin/tftp 127.0.0.1 1234
-test -f ${TFTPDIR}/rules.ninja && diff ${TFTPDIR}/rules.ninja rules.ninja
-wait
+## bin/tftpd_test 1234 &
+## sleep 1
+## printf "rexmt 1\nverbose\ntrace\nbinary\nput rules.ninja\n" | bin/tftp 127.0.0.1 1234
+## test -f ${TFTPDIR}/rules.ninja && diff ${TFTPDIR}/rules.ninja rules.ninja
+## wait
 ##############################################
-## upload large file > 135K:
-#XXX must fail, disk full!
-bin/tftpd_test 1234 &
-sleep 1
-${TFTP} -m binary -c put bin/tftpd_test tftpd_test && exit 1
-#XXX diff ${TFTPDIR}/tftpd_test bin/tftpd_test
-wait
+
+##############################################
+# upload large file > 135K:
+# NOTE: must fail, disk full!
+if test "${UNAME}" == "Linux"; then
+    bin/tftpd_test 1234 &
+    sleep 1
+    ${TFTP} -i bin/tftpd_test --upload=tftpd_test && exit 1
+    #XXX diff ${TFTPDIR}/tftpd_test bin/tftpd_test || echo "OK"
+    wait
+fi
 ##############################################
 ## absolut path upload must fail
 dd if=bin/tftpd_test of=test32k.dat bs=1024 count=32
 bin/tftpd_test 1234 &
 sleep 1
-${TFTP} -m binary -c put test32k.dat ${TFTPDIR}/test32k.dat && exit 1
+${TFTP} -i test32k.dat --upload=${TFTPDIR}/test32k.dat && exit 1
 wait
 ##############################################
 
-# ascii upload must fail
+# TODO: ascii upload should fail
+## bin/tftpd_test 1234 &
+## sleep 1
+## ${TFTP} -m ascii -c put rules.ninja && exit 1
+## wait
+
+# relative path upload must fail
 bin/tftpd_test 1234 &
 sleep 1
-${TFTP} -m ascii -c put rules.ninja && exit 1
+${TFTP} -i rules.ninja --upload=../rules.ninja && exit 1
 wait
 
 # relative path upload must fail
 bin/tftpd_test 1234 &
 sleep 1
-${TFTP} -m binary -c put rules.ninja ../rules.ninja && exit 1
-wait
-
-# relative path upload must fail
-bin/tftpd_test 1234 &
-sleep 1
-${TFTP} -m binary -c put rules.ninja ./../rules.ninja && exit 1
+${TFTP} -i rules.ninja --upload=./../rules.ninja && exit 1
 wait
 
 # invalid absolut path upload must fail
 bin/tftpd_test 1234 &
 sleep 1
-${TFTP} -m binary -c put rules.ninja //srv///tftp/rules.ninja && exit 1
+${TFTP} -i rules.ninja --upload=//srv///tftp/rules.ninja && exit 1
 wait
 
 # relative path to nonexisting subdir must fail
 bin/tftpd_test 1234 &
 sleep 1
-${TFTP} -m binary -c put rules.ninja ./tftp/rules.ninja && exit 1
+${TFTP} -i rules.ninja --upload=./tftp/rules.ninja && exit 1
 wait
 
 ##############################################

@@ -1,10 +1,8 @@
 cmake_minimum_required(VERSION 3.13..3.15)
 
-# list(APPEND CMAKE_MODULE_PATH $ENV{HOME}/Workspace/cmake)
-
 include(before_project_setup OPTIONAL)
 # ===============================
-project(netkit-tftp VERSION 0.17)
+project(netkit-tftp VERSION 0.17.5)
 # ===============================
 include(build_options OPTIONAL)
 
@@ -27,8 +25,6 @@ endfunction()
 # This variable controls whether the CMAKE_FIND_ROOT_PATH and CMAKE_SYSROOT are used by find_package().
 set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE BOTH CACHE STRING "NOTE: forced value!" FORCE)
 find_package(Threads REQUIRED)
-
-#XXX set(BOOST_ROOT /usr/local/opt/boost)
 find_package(Boost 1.67.0 REQUIRED COMPONENTS filesystem)
 
 
@@ -71,8 +67,8 @@ endif()
 
 
 if(NOT CMAKE_CROSSCOMPILING AND ${NETKIT_TFTP_MASTER_PROJECT})
-    add_subdirectory(tftp)
-    add_subdirectory(tftpd)
+    #XXX add_subdirectory(tftp)
+    #XXX add_subdirectory(tftpd)
 endif()
 
 
@@ -123,8 +119,8 @@ if(NETKIT_TFTP_TESTS)
     target_link_libraries(tftpd_test tftpd)
     add_test(
         NAME tftpd_test
-        COMMAND ${CMAKE_SOURCE_DIR}/test.sh
-        WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+        COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/test.sh
+        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
     )
 
     # test coverage option
@@ -133,8 +129,8 @@ if(NETKIT_TFTP_TESTS)
 
         set(COVERAGE_EXCLUDES
             '/usr/*' '/opt/*'
-            '${CMAKE_SOURCE_DIR}/tftp/*'
-            '${CMAKE_SOURCE_DIR}/tftpd/*'
+            '${CMAKE_CURRENT_SOURCE_DIR}/tftp/*'
+            '${CMAKE_CURRENT_SOURCE_DIR}/tftpd/*'
             '/Applications/Xcode.app/*'
         )
         setup_target_for_coverage(
