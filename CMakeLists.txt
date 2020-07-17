@@ -28,7 +28,7 @@ endfunction()
 set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE BOTH CACHE STRING "NOTE: forced value!" FORCE)
 find_package(Threads REQUIRED)
 
-set(Boost_ROOT /usr/local/opt/boost)
+#XXX set(BOOST_ROOT /usr/local/opt/boost)
 find_package(Boost 1.67.0 REQUIRED COMPONENTS filesystem)
 
 
@@ -70,7 +70,7 @@ endif()
 #NO! CK set(CMAKE_C_STANDARD_INCLUDE_DIRECTORIES ${CMAKE_CURRENT_SOURCE_DIR}/include)
 
 
-if(NOT CMAKE_CROSSCOMPILING AND NETKIT_TFTP_TESTS)
+if(NOT CMAKE_CROSSCOMPILING AND ${NETKIT_TFTP_MASTER_PROJECT})
     add_subdirectory(tftp)
     add_subdirectory(tftpd)
 endif()
