@@ -8,6 +8,7 @@ MAKEFLAGS+= --no-builtin-rules
 
 .PHONY: setup show all test lcov install check format clean distclean
 
+UNAME:=$(shell uname)
 PROJECT_NAME:=$(shell basename $${PWD})
 
 ##################################################
@@ -30,8 +31,12 @@ CHECKS?='-*,misc-*,boost-*,cert-*,misc-unused-parameters'
 #
 # prevent hard config of find_package(asio 1.14.1 CONFIG CMAKE_FIND_ROOT_PATH_BOTH)
 ifeq (NO${CROSS_COMPILE},NO)
-    ##XXX CC:=/opt/local/bin/clang
-    ##XXX CXX:=/opt/local/bin/clang++
+    ifeq (${UNAME},Darwin)
+        CC:=/usr/local/opt/llvm/bin/clang
+        CXX:=/usr/local/opt/llvm/bin/clang++
+        BOOST_ROOT:=/usr/local/opt/boost
+        export BOOST_ROOT
+    endif
 
     # NOTE: Do not uses with DESTDIR! CMAKE_INSTALL_PREFIX?=/
     DESTDIR?=/tmp/staging/$(PROJECT_NAME)
