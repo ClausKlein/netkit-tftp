@@ -48,8 +48,8 @@ if(NETKIT_TFTP_MASTER_PROJECT)
         message(WARNING "Try to FetchContentget asio with FetchContent ...")
         fetchcontent_declare(
             asio
-            GIT_REPOSITORY git@code2.rsint.net:sdhr/third_party/product/asio.git
-            GIT_TAG 3e0d227b9307e0b680907418dd9625914a518767 # rsint-asio-1.14.1
+            GIT_REPOSITORY https://github.com/ClausKlein/asio.git
+            GIT_TAG 466972d7aedf41f95e3b5dfde01ddc6ad9f53596 # feature/add_cmake
         )
         fetchcontent_makeavailable_asio(asio)
     endif()

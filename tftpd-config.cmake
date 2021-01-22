@@ -1,6 +1,7 @@
 include(CMakeFindDependencyMacro)
 
 find_dependency(Threads)
+find_dependency(asio 1.14.1)
 find_dependency(Boost 1.67.0 COMPONENTS filesystem)
 
 if(NOT TARGET tftpd::tftpd)
