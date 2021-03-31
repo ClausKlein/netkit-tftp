@@ -1,8 +1,8 @@
-cmake_minimum_required(VERSION 3.13..3.15)
+cmake_minimum_required(VERSION 3.13..3.20)
 
 include(before_project_setup OPTIONAL)
 # ===============================
-project(netkit-tftp VERSION 0.17.5)
+project(netkit-tftp VERSION 0.17.6)
 # ===============================
 include(build_options OPTIONAL)
 
@@ -25,7 +25,7 @@ endfunction()
 # This variable controls whether the CMAKE_FIND_ROOT_PATH and CMAKE_SYSROOT are used by find_package().
 set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE BOTH CACHE STRING "NOTE: forced value!" FORCE)
 find_package(Threads REQUIRED)
-find_package(Boost 1.67.0 REQUIRED COMPONENTS filesystem)
+find_package(Boost 1.71.0 REQUIRED COMPONENTS filesystem)
 
 
 #---------------------------------------------------------------------------------------
@@ -80,7 +80,7 @@ endif()
 # add_executable(async_udp_echo_server async_udp_echo_server.cpp)
 # target_link_libraries(async_udp_echo_server asio::standalone Threads::Threads)
 
-add_library(tftpd async_tftpd_server.cpp async_tftpd_server.hpp tftpd.hpp
+add_library(tftpd STATIC async_tftpd_server.cpp async_tftpd_server.hpp tftpd.hpp
             tftpd_utils.cpp tftpd_options.cpp tftp_subs.cpp tftp/tftpsubs.h
 )
 add_library(tftpd::tftpd ALIAS tftpd)
@@ -112,11 +112,11 @@ if(NETKIT_TFTP_TESTS)
 
     add_executable(option_test option_test.cpp async_tftpd_server.hpp)
     #NO! CK target_include_directories(option_test SYSTEM PRIVATE include)
-    target_link_libraries(option_test tftpd)
+    target_link_libraries(option_test PRIVATE tftpd)
     add_test(NAME option_test COMMAND option_test)
 
     add_executable(tftpd_test tftpd_test.cpp async_tftpd_server.hpp)
-    target_link_libraries(tftpd_test tftpd)
+    target_link_libraries(tftpd_test PRIVATE tftpd)
     add_test(
         NAME tftpd_test
         COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/test.sh

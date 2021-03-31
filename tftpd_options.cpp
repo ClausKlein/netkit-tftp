@@ -128,7 +128,7 @@ static bool set_blksize2(uintmax_t *vp)
     } else {
         /* Convert to a power of two */
         if ((sz & (sz - 1)) != 0) {
-            unsigned int sz1 = 1;
+            uintmax_t sz1 = 1;
             /* Not a power of two - need to convert */
             while ((sz >>= 1) != 0) {
                 sz1 <<= 1;

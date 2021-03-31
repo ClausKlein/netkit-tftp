@@ -3,16 +3,14 @@
 #include <arpa/tftp.h>
 
 #ifdef __cplusplus
-#    include <boost/current_function.hpp>
-
 #    include <cstdint>
 #    include <cstdio>
-#    define _Bool bool
+#    define _Bool bool  // NOLINT
 constexpr int ERRNO_OFFSET{100};
 #else
 #    include <stdint.h>
 #    include <stdio.h>
-#    define _Bool int
+#    define _Bool int   // NOLINT
 #endif
 
 #ifndef TFTP_HEADER
