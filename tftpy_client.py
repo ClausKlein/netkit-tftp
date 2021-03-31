@@ -2,7 +2,9 @@
 # vim: ts=4 sw=4 et ai:
 # -*- coding: utf8 -*-
 
-import sys, logging, os
+import sys
+import logging
+import os
 from optparse import OptionParser
 import tftpy
 
@@ -16,8 +18,9 @@ default_formatter = logging.Formatter('[%(asctime)s] %(message)s')
 handler.setFormatter(default_formatter)
 log.addHandler(handler)
 
+
 def main():
-    usage=""
+    usage = ""
     parser = OptionParser(usage=usage)
     parser.add_option('-H',
                       '--host',
@@ -92,11 +95,12 @@ def main():
                 self.out("Transferred %d bytes" % self.progress)
             elif isinstance(pkt, tftpy.TftpPacketTypes.TftpPacketOACK):
                 self.out("Received OACK, options are: %s" % pkt.options)
-        
+
     if options.debug:
         log.setLevel(logging.DEBUG)
         # increase the verbosity of the formatter
-        debug_formatter = logging.Formatter('[%(asctime)s%(msecs)03d] %(levelname)s [%(name)s:%(lineno)s] %(message)s')
+        debug_formatter = logging.Formatter(
+            '[%(asctime)s%(msecs)03d] %(levelname)s [%(name)s:%(lineno)s] %(message)s')
         handler.setFormatter(debug_formatter)
     elif options.quiet:
         log.setLevel(logging.WARNING)
@@ -131,6 +135,7 @@ def main():
         sys.exit(1)
     except KeyboardInterrupt:
         pass
+
 
 if __name__ == '__main__':
     main()

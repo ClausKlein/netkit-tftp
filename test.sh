@@ -26,7 +26,7 @@ fi
 ## TODO: upload should fail, no tftpboot dir
 # bin/tftpd_test 1234 &
 # sleep 1
-# ${TFTP} -m binary -c put rules.ninja zero.dat && exit 1
+# ${TFTP} -m binary -c put build.ninja zero.dat && exit 1
 # wait
 ##############################################
 
@@ -46,7 +46,7 @@ wait
 
 ## TODO: upload should fail in secure mode if file not world writeable
 # bin/tftpd_test 1234 &
-# ${TFTP} -m binary -c put rules.ninja zero.dat && exit 1
+# ${TFTP} -m binary -c put build.ninja zero.dat && exit 1
 # wait
 
 # must fail no such file
@@ -107,22 +107,40 @@ wait
 if test "${UNAME}" == "Linux"; then
     dd if=bin/tftpd_test of=test64k.dat bs=1024 count=64
 
-    #---------------------------------------------
     bin/tftpd_test 1234 &
     sleep 1
-    ./tftpy_client.py --host=127.0.0.1 --port=1234 --tsize --blksize=16384 --upload=test64k.dat --input=test64k.dat
+    ${TFTP} --upload=test64k.dat --input=test64k.dat
     wait
 
     #---------------------------------------------
     bin/tftpd_test 1234 &
     sleep 1
-    ./tftpy_client.py --host=127.0.0.1 --port=1234 --tsize --blksize=32768 --upload=test64k.dat --input=test64k.dat
+    ${TFTP} --upload=test64k.dat --input=test64k.dat
     wait
 
     #---------------------------------------------
     bin/tftpd_test 1234 &
     sleep 1
-    ./tftpy_client.py --host=127.0.0.1 --port=1234 --tsize --blksize=65536 --upload=test64k.dat --input=test64k.dat
+    ${TFTP} --upload=test64k.dat --input=test64k.dat
+    wait
+else
+    dd if=/dev/zero of=test64m.dat bs=1m count=64
+
+    bin/tftpd_test 1234 &
+    sleep 1
+    ${TFTP} --blksize=1024 --upload=test64m.dat --input=test64m.dat
+    wait
+
+    #---------------------------------------------
+    bin/tftpd_test 1234 &
+    sleep 1
+    ${TFTP} --blksize=2048 --upload=test64m.dat --input=test64m.dat
+    wait
+
+    #---------------------------------------------
+    bin/tftpd_test 1234 &
+    sleep 1
+    ${TFTP} --blksize=4096 --upload=test64m.dat --input=test64m.dat
     wait
 fi
 ##############################################
@@ -134,8 +152,8 @@ fi
 # TODO: should not fail
 ## bin/tftpd_test 1234 &
 ## sleep 1
-## printf "rexmt 1\nverbose\ntrace\nbinary\nput rules.ninja\n" | bin/tftp 127.0.0.1 1234
-## test -f ${TFTPDIR}/rules.ninja && diff ${TFTPDIR}/rules.ninja rules.ninja
+## printf "rexmt 1\nverbose\ntrace\nbinary\nput build.ninja\n" | bin/tftp 127.0.0.1 1234
+## test -f ${TFTPDIR}/build.ninja && diff ${TFTPDIR}/build.ninja build.ninja
 ## wait
 ##############################################
 
@@ -145,7 +163,7 @@ fi
 if test "${UNAME}" == "Linux"; then
     bin/tftpd_test 1234 &
     sleep 1
-    ${TFTP} -i bin/tftpd_test --upload=tftpd_test && exit 1
+    ${TFTP} --input=bin/tftpd_test --upload=tftpd_test && exit 1
     #XXX diff ${TFTPDIR}/tftpd_test bin/tftpd_test || echo "OK"
     wait
 fi
@@ -154,38 +172,38 @@ fi
 dd if=bin/tftpd_test of=test32k.dat bs=1024 count=32
 bin/tftpd_test 1234 &
 sleep 1
-${TFTP} -i test32k.dat --upload=${TFTPDIR}/test32k.dat && exit 1
+${TFTP} --input=test32k.dat --upload=${TFTPDIR}/test32k.dat && exit 1
 wait
 ##############################################
 
 # TODO: ascii upload should fail
 ## bin/tftpd_test 1234 &
 ## sleep 1
-## ${TFTP} -m ascii -c put rules.ninja && exit 1
+## ${TFTP} -m ascii -c put build.ninja && exit 1
 ## wait
 
 # relative path upload must fail
 bin/tftpd_test 1234 &
 sleep 1
-${TFTP} -i rules.ninja --upload=../rules.ninja && exit 1
+${TFTP} --input=build.ninja --upload=../build.ninja && exit 1
 wait
 
 # relative path upload must fail
 bin/tftpd_test 1234 &
 sleep 1
-${TFTP} -i rules.ninja --upload=./../rules.ninja && exit 1
+${TFTP} --input=build.ninja --upload=./../build.ninja && exit 1
 wait
 
 # invalid absolut path upload must fail
 bin/tftpd_test 1234 &
 sleep 1
-${TFTP} -i rules.ninja --upload=//srv///tftp/rules.ninja && exit 1
+${TFTP} --input=build.ninja --upload=//srv///tftp/build.ninja && exit 1
 wait
 
 # relative path to nonexisting subdir must fail
 bin/tftpd_test 1234 &
 sleep 1
-${TFTP} -i rules.ninja --upload=./tftp/rules.ninja && exit 1
+${TFTP} --input=build.ninja --upload=./tftp/build.ninja && exit 1
 wait
 
 ##############################################

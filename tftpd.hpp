@@ -113,7 +113,9 @@ protected:
             // Cancel all asynchronous operations associated with the socket.
             if (!error) {
                 timeout_ += rexmtval;
-                syslog(LOG_WARNING, "tftpd: timeout\n");
+                if (!last_timeout_) {
+                    syslog(LOG_WARNING, "tftpd: timeout\n");
+                }
                 if (socket_.is_open()) {
                     socket_.cancel();
                     if (timeout_ >= maxtimeout) {
