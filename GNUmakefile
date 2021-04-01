@@ -32,8 +32,8 @@ CHECKS?='-*,misc-*,boost-*,cert-*,misc-unused-parameters'
 # prevent hard config of find_package(asio 1.14.1 CONFIG CMAKE_FIND_ROOT_PATH_BOTH)
 ifeq (NO${CROSS_COMPILE},NO)
     ifeq (${UNAME},Darwin)
-        CC:=/usr/local/opt/llvm/bin/clang
-        CXX:=/usr/local/opt/llvm/bin/clang++
+        #TODO CC:=/usr/local/opt/llvm/bin/clang
+        #TODO CXX:=/usr/local/opt/llvm/bin/clang++
         BOOST_ROOT:=/usr/local/opt/boost
         export BOOST_ROOT
     endif
@@ -43,7 +43,7 @@ ifeq (NO${CROSS_COMPILE},NO)
     export DESTDIR
 
     CMAKE_STAGING_PREFIX?=/usr/local
-    CMAKE_PREFIX_PATH?="${CMAKE_STAGING_PREFIX};/opt/local;/usr"
+    CMAKE_PREFIX_PATH?="${CMAKE_STAGING_PREFIX};/usr/local;/usr"
 else
     CMAKE_STAGING_PREFIX?=/tmp/staging/${CROSS_COMPILE}$(PROJECT_NAME)
     CMAKE_PREFIX_PATH?="${CMAKE_STAGING_PREFIX};/opt/sdhr/SDHR/staging/imx8mm-sdhr/develop/"
