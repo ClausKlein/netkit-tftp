@@ -109,19 +109,19 @@ if test "${UNAME}" == "Linux"; then
 
     bin/tftpd_test 1234 &
     sleep 1
-    ${TFTP} --upload=test64k.dat --input=test64k.dat
+    ${TFTP} --blksize=16384 --upload=test64k.dat --input=test64k.dat
     wait
 
     #---------------------------------------------
     bin/tftpd_test 1234 &
     sleep 1
-    ${TFTP} --upload=test64k.dat --input=test64k.dat
+    ${TFTP} --blksize=32768 --upload=test64k.dat --input=test64k.dat
     wait
 
     #---------------------------------------------
     bin/tftpd_test 1234 &
     sleep 1
-    ${TFTP} --upload=test64k.dat --input=test64k.dat
+    ${TFTP} --blksize=65536 --upload=test64k.dat --input=test64k.dat
     wait
 else
     dd if=/dev/zero of=test64m.dat bs=1m count=64
