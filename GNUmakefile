@@ -6,7 +6,7 @@
 # Disable the built-in implicit rules.
 MAKEFLAGS+= --no-builtin-rules
 
-.PHONY: setup show all test lcov install check format clean distclean
+.PHONY: update setup show all test lcov install check format clean distclean
 
 UNAME:=$(shell uname)
 PROJECT_NAME:=$(shell basename $${PWD})
@@ -79,6 +79,12 @@ test: all
 	cd $(BUILD_DIR) && ctest -C $(BUILD_TYPE) --rerun-failed --output-on-failure .
 	cd $(BUILD_DIR) && ctest -C $(BUILD_TYPE) .
 
+# update CPM.cmake
+update:
+	pip3 install jinja2 Pygments gcovr cmake_format==0.6.13 pyyaml tftpy
+	wget -q -O cmake/CPM.cmake https://github.com/cpm-cmake/CPM.cmake/releases/latest/download/get_cpm.cmake
+	wget -q -O cmake/WarningsAsErrors.cmake https://raw.githubusercontent.com/approvals/ApprovalTests.cpp/master/CMake/WarningsAsErrors.cmake
+
 
 # NOTE: we do only check the new cpp file! CK
 check: setup .configure-$(BUILD_TYPE) compile_commands.json
@@ -103,8 +109,9 @@ $(BUILD_DIR): GNUmakefile
 	mkdir -p $@
 
 
-format: .clang-format
+format: .clang-format .cmake-format
 	find . -type f \( -name '*.h' -o -name '*.hpp' -o -name '*.c' -o -name '*.cpp' \) -print0 | xargs -0 clang-format -style=file -i
+	find . -type f \( -name '*.cmake' -o -name 'CMakeLists.txt' \) -print0 | xargs -0 cmake-format -i
 
 
 show: setup

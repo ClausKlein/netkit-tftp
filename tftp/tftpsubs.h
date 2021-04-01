@@ -5,12 +5,12 @@
 #ifdef __cplusplus
 #    include <cstdint>
 #    include <cstdio>
-#    define _Bool bool  // NOLINT
+#    define _Bool bool // NOLINT
 constexpr int ERRNO_OFFSET{100};
 #else
 #    include <stdint.h>
 #    include <stdio.h>
-#    define _Bool int   // NOLINT
+#    define _Bool int // NOLINT
 #endif
 
 #ifndef TFTP_HEADER

@@ -46,9 +46,9 @@ char copyright[] = "@(#) Copyright (c) 1983 Regents of the University of Califor
 #include "async_tftpd_server.hpp"
 #include "tftp/tftpsubs.h"
 
-#include <boost/current_function.hpp>
 #include <boost/algorithm/string/case_conv.hpp>
 #include <boost/algorithm/string/predicate.hpp>
+#include <boost/current_function.hpp>
 
 #include <arpa/inet.h>
 #include <cstdlib>
