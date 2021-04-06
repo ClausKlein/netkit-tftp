@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.14..3.20)
+cmake_minimum_required(VERSION 3.14...3.20)
 
 include(before_project_setup OPTIONAL)
 # ===============================
@@ -28,8 +28,8 @@ set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE
     BOTH
     CACHE STRING "NOTE: forced value!" FORCE
 )
-find_package(Threads REQUIRED)
-find_package(Boost 1.71.0 REQUIRED COMPONENTS filesystem)
+#XXX find_package(Threads REQUIRED)
+find_package(Boost 1.71.0 COMPONENTS filesystem)
 find_package(asio 1.14.1 CONFIG)
 
 #---------------------------------------------------------------------------------------
@@ -41,6 +41,20 @@ if(NOT DEFINED NETKIT_TFTP_MASTER_PROJECT)
     else()
         set(NETKIT_TFTP_MASTER_PROJECT OFF)
     endif()
+endif()
+
+if(TARGET Boost::filesystem)
+    option(NETKIT_TFTP_INSTALL "Install targets." ${NETKIT_TFTP_MASTER_PROJECT})
+else()
+    message(WARNING "Try to fetch Boost with CPMAddPackage ...")
+    CPMAddPackage(
+        Boost
+        GITHUB_REPOSITORY Orphis/boost-cmake
+        GIT_TAG d3951bc7f0b9d09005f92aedcf6acfc595f050ea # 1.71.0
+        # setting FIND_PACKAGE_ARGUMENTS allow usage with `CPM_USE_LOCAL_PACKAGES`
+        OPTIONS "BOOST_LIBS_OPTIONAL filesystem"
+        FIND_PACKAGE_ARGUMENTS "COMPONENTS filesystem"
+    )
 endif()
 
 if(NOT TARGET asio::standalone)
@@ -68,7 +82,7 @@ add_library(
     tftp/tftpsubs.h
 )
 target_link_libraries(
-    tftpd PUBLIC Boost::filesystem asio::standalone Threads::Threads
+    tftpd PUBLIC Boost::filesystem asio::standalone #XXX Threads::Threads
 )
 #NO! CK target_include_directories(tftpd SYSTEM PRIVATE include)
 target_include_directories(
@@ -79,7 +93,6 @@ target_include_directories(
 #---------------------------------------------------------------------------------------
 # Install and export tftpd-targets
 #---------------------------------------------------------------------------------------
-option(NETKIT_TFTP_INSTALL "Install targets." ${NETKIT_TFTP_MASTER_PROJECT})
 if(NETKIT_TFTP_INSTALL)
     packageProject(
         NAME ${PROJECT_NAME}
@@ -109,11 +122,11 @@ if(NETKIT_TFTP_TESTS)
 
     add_executable(option_test option_test.cpp async_tftpd_server.hpp)
     #NO! CK target_include_directories(option_test SYSTEM PRIVATE include)
-    target_link_libraries(option_test PRIVATE tftpd::tftpd)
+    target_link_libraries(option_test PRIVATE tftpd)
     add_test(NAME option_test COMMAND option_test)
 
     add_executable(tftpd_test tftpd_test.cpp async_tftpd_server.hpp)
-    target_link_libraries(tftpd_test PRIVATE tftpd::tftpd)
+    target_link_libraries(tftpd_test PRIVATE tftpd)
     add_test(
         NAME tftpd_test
         COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/test.sh
