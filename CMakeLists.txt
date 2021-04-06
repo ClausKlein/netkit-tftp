@@ -28,7 +28,7 @@ set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE
     BOTH
     CACHE STRING "NOTE: forced value!" FORCE
 )
-#XXX find_package(Threads REQUIRED)
+find_package(Threads REQUIRED)
 find_package(Boost 1.71.0 COMPONENTS filesystem)
 find_package(asio 1.14.1 CONFIG)
 
@@ -51,8 +51,8 @@ else()
         Boost
         GITHUB_REPOSITORY Orphis/boost-cmake
         GIT_TAG d3951bc7f0b9d09005f92aedcf6acfc595f050ea # 1.71.0
-        # setting FIND_PACKAGE_ARGUMENTS allow usage with `CPM_USE_LOCAL_PACKAGES`
         OPTIONS "BOOST_LIBS_OPTIONAL filesystem"
+        # setting FIND_PACKAGE_ARGUMENTS allow usage with `CPM_USE_LOCAL_PACKAGES`
         FIND_PACKAGE_ARGUMENTS "COMPONENTS filesystem"
     )
 endif()
@@ -82,7 +82,7 @@ add_library(
     tftp/tftpsubs.h
 )
 target_link_libraries(
-    tftpd PUBLIC Boost::filesystem asio::standalone #XXX Threads::Threads
+    tftpd PUBLIC Boost::filesystem asio::standalone Threads::Threads
 )
 #NO! CK target_include_directories(tftpd SYSTEM PRIVATE include)
 target_include_directories(
