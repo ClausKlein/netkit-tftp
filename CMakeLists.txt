@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.14...3.20)
+cmake_minimum_required(VERSION 3.16...3.23)
 
 include(before_project_setup OPTIONAL)
 # ===============================
@@ -18,7 +18,30 @@ include(GNUInstallDirs)
 include(cmake/CPM.cmake)
 
 # PackageProject.cmake will be used to make our target installable
-CPMAddPackage("gh:TheLartians/PackageProject.cmake@1.7.0")
+CPMAddPackage("gh:TheLartians/PackageProject.cmake@1.9.0")
+
+if(EXISTS "$ENV{HOME}/.cache/CPM/boost_1_79_0")
+  set(FETCHCONTENT_SOURCE_DIR_BOOST "$ENV{HOME}/.cache/CPM/boost_1_79_0" CACHE PATH "Boost source DIR")
+endif()
+
+CPMAddPackage(
+  NAME boost-cmake GITHUB_REPOSITORY ClausKlein/boost-cmake
+  GIT_TAG b7c741f42b089117221622c72783d2cb821843dc # feature/upgrade-to-boost-v1.79-0
+)
+
+CPMAddPackage(
+    asio
+    GIT_REPOSITORY https://github.com/ClausKlein/asio.git
+    GIT_TAG fea320c422a5de8d2c48cd02ae42e6251acf0030 # feature/use-cmake-init v1.22.1
+    SOURCE_SUBDIR asio
+)
+
+# CPMAddPackage(
+#   NAME Boost
+#   VERSION 1.79.0
+#   GITHUB_REPOSITORY "boostorg/boost"
+#   GIT_TAG "boost-1.79.0"
+# )
 
 #---------------------------------------------------------------------------------------
 # search required packages and libs
@@ -29,43 +52,20 @@ set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE
     CACHE STRING "NOTE: forced value!" FORCE
 )
 find_package(Threads REQUIRED)
-find_package(Boost 1.71.0 COMPONENTS filesystem)
-find_package(asio 1.14.1 CONFIG)
 
-#---------------------------------------------------------------------------------------
-# Check if netkit-tftp is being used directly or via add_subdirectory, but allow overriding
-#---------------------------------------------------------------------------------------
-if(NOT DEFINED NETKIT_TFTP_MASTER_PROJECT)
-    if(CMAKE_CURRENT_SOURCE_DIR STREQUAL CMAKE_SOURCE_DIR)
-        set(NETKIT_TFTP_MASTER_PROJECT ON)
-    else()
-        set(NETKIT_TFTP_MASTER_PROJECT OFF)
-    endif()
-endif()
-
-if(TARGET Boost::filesystem)
-    option(NETKIT_TFTP_INSTALL "Install targets." ${NETKIT_TFTP_MASTER_PROJECT})
-else()
-    message(WARNING "Try to fetch Boost with CPMAddPackage ...")
-    CPMAddPackage(
-        Boost
-        GITHUB_REPOSITORY Orphis/boost-cmake
-        GIT_TAG d3951bc7f0b9d09005f92aedcf6acfc595f050ea # 1.71.0
-        OPTIONS "BOOST_LIBS_OPTIONAL filesystem"
-        # setting FIND_PACKAGE_ARGUMENTS allow usage with `CPM_USE_LOCAL_PACKAGES`
-        FIND_PACKAGE_ARGUMENTS "COMPONENTS filesystem"
-    )
-endif()
-
-if(NOT TARGET asio::standalone)
-    message(WARNING "Try to fetch asio with CPMAddPackage ...")
-    CPMAddPackage(
-        asio
-        GIT_REPOSITORY https://github.com/ClausKlein/asio.git
-        GIT_TAG d46126a9d353b2be9c98aca7c3fc4fa17a080ca3 # feature/add_cmake
-                SOURCE_SUBDIR asio
-    )
-endif()
+# if(TARGET Boost::filesystem)
+#     option(NETKIT_TFTP_INSTALL "Install targets." ${PROJECT_IS_TOP_LEVEL})
+# else()
+#     message(WARNING "Try to fetch Boost with CPMAddPackage ...")
+#     CPMAddPackage(
+#         Boost
+#         GITHUB_REPOSITORY Orphis/boost-cmake
+#         GIT_TAG d3951bc7f0b9d09005f92aedcf6acfc595f050ea # 1.71.0
+#         OPTIONS "BOOST_LIBS_OPTIONAL filesystem"
+#         # setting FIND_PACKAGE_ARGUMENTS allow usage with `CPM_USE_LOCAL_PACKAGES`
+#         FIND_PACKAGE_ARGUMENTS "COMPONENTS filesystem"
+#     )
+# endif()
 
 #NO! CK set(CMAKE_C_STANDARD_INCLUDE_DIRECTORIES SYSTEM include)
 #XXX add_subdirectory(tftp)
@@ -82,7 +82,7 @@ add_library(
     tftp/tftpsubs.h
 )
 target_link_libraries(
-    tftpd PUBLIC Boost::filesystem asio::standalone Threads::Threads
+    tftpd PUBLIC Boost::filesystem asio::asio
 )
 #NO! CK target_include_directories(tftpd SYSTEM PRIVATE include)
 target_include_directories(
@@ -105,7 +105,7 @@ if(NETKIT_TFTP_INSTALL)
         # EXPORT_HEADER ${EXPORT_HEADER_LOCATION}
         COMPATIBILITY SameMajorVersion
         DISABLE_VERSION_SUFFIX YES
-        DEPENDENCIES "asio 1.14.1; boost 1.71.0"
+        DEPENDENCIES "asio 1.22.1; boost 1.79.0"
     )
     # NOTE: implicit done! add_library(tftpd::tftpd ALIAS tftpd)
     install(FILES async_tftpd_server.hpp
@@ -116,7 +116,7 @@ endif()
 #---------------------------------------------------------------------------------------
 # ctest
 #---------------------------------------------------------------------------------------
-option(NETKIT_TFTP_TESTS "Build test target." ${NETKIT_TFTP_MASTER_PROJECT})
+option(NETKIT_TFTP_TESTS "Build test target." ${PROJECT_IS_TOP_LEVEL})
 if(NETKIT_TFTP_TESTS)
     enable_testing()
 
