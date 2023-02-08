@@ -8,7 +8,7 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_EXTENSIONS NO)
 
 
-#XXX include(before_project_setup OPTIONAL)
+# XXX include(before_project_setup OPTIONAL)
 # ===============================
 project(
     tftpd # ORIG: netkit-tftp v0.17.6
@@ -63,19 +63,20 @@ target_include_directories(
 
 if(PROJECT_IS_TOP_LEVEL AND CMAKE_BUILD_TYPE STREQUAL "Debug")
     set(CMAKE_SKIP_INSTALL_RULES TRUE)
-    #NO! include(WarningsAsErrors)
+    # XXX NO! include(WarningsAsErrors)
 
     project_options(
         PREFIX
         ${PROJECT_NAME}
         ENABLE_CACHE
         ENABLE_COVERAGE
+        ENABLE_CLANG_TIDY
         ENABLE_SANITIZER_ADDRESS
         ENABLE_SANITIZER_UNDEFINED_BEHAVIOR
         # ENABLE_SANITIZER_LEAK
         # ENABLE_SANITIZER_THREAD
         # ENABLE_SANITIZER_MEMORY
-        # WARNINGS_AS_ERRORS
+        # XXX NO! WARNINGS_AS_ERRORS
         # ENABLE_INCLUDE_WHAT_YOU_USE
     )
     if(CMAKE_SKIP_INSTALL_RULES)
