@@ -27,7 +27,7 @@ include(GNUInstallDirs)
 #---------------------------------------------------------------------------------------
 
 find_package(
-    Boost 1.81 CONFIG
+    Boost 1.74 CONFIG
     COMPONENTS filesystem
     REQUIRED
 )
@@ -102,7 +102,7 @@ if(NOT CMAKE_SKIP_INSTALL_RULES)
         # EXPORT_HEADER ${EXPORT_HEADER_LOCATION}
         COMPATIBILITY SameMajorVersion
         DISABLE_VERSION_SUFFIX YES
-        DEPENDENCIES "boost 1.81"
+        DEPENDENCIES "boost 1.74"
     )
     # NOTE: implicit done! add_library(tftpd::tftpd ALIAS tftpd)
     install(FILES async_tftpd_server.hpp
