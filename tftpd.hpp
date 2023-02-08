@@ -18,8 +18,8 @@
  */
 #include "tftp/tftpsubs.h"
 
-#include <asio/ts/buffer.hpp>
-#include <asio/ts/internet.hpp>
+#include <boost/asio/ts/buffer.hpp>
+#include <boost/asio/ts/internet.hpp>
 #include <boost/current_function.hpp>
 
 #include <chrono>
@@ -66,13 +66,13 @@ static const errmsg errmsgs[] = {{EUNDEF, "Undefined error code"},
                                  {-1, nullptr}};
 
 //----------------------------------------------------------------------
-using asio::ip::udp;
+using boost::asio::ip::udp;
 //----------------------------------------------------------------------
 
 class server
 {
 public:
-    server(asio::io_context &io_context, short port)
+    server(boost::asio::io_context &io_context, short port)
         : socket_(io_context, udp::endpoint(udp::v4(), port)), timer_(io_context), timeout_(rexmtval)
     {
         start_timeout(maxtimeout); // max idle wait ...
@@ -138,7 +138,7 @@ protected:
         syslog(LOG_NOTICE, "%s\n", BOOST_CURRENT_FUNCTION);
 
         rxdata_.resize(PKTSIZE);
-        socket_.async_receive_from(asio::buffer(rxdata_, PKTSIZE), senderEndpoint_,
+        socket_.async_receive_from(boost::asio::buffer(rxdata_, PKTSIZE), senderEndpoint_,
                                    [this](std::error_code ec, std::size_t bytes_recvd) {
                                        if (!ec && bytes_recvd > 0) {
                                            rxdata_.resize(bytes_recvd);
@@ -208,7 +208,7 @@ protected:
     {
         syslog(LOG_NOTICE, "%s\n", BOOST_CURRENT_FUNCTION);
 
-        socket_.async_send_to(asio::buffer(txdata), senderEndpoint_,
+        socket_.async_send_to(boost::asio::buffer(txdata), senderEndpoint_,
                               [this](std::error_code /*ec*/, std::size_t /*bytes_sent*/) {
                                   // XXX if (ec) { syslog(LOG_ERR, "do_send_error: %s\n", ec.message().c_str()); }
                                   // TODO: now we have no timer running, the run loop terminates
@@ -224,7 +224,7 @@ protected:
     std::vector<char> optack_;         // NOLINT(cppcoreguidelines-non-private-member-variables-in-classes)
 
 private:
-    asio::steady_timer timer_;
+    boost::asio::steady_timer timer_;
     std::vector<char> rxdata_;
     int timeout_;
     bool last_timeout_ = {false};
@@ -233,7 +233,7 @@ private:
 class receiver : public server
 {
 public:
-    receiver(asio::io_context &io_context, short port) : server(io_context, port) {}
+    receiver(boost::asio::io_context &io_context, short port) : server(io_context, port) {}
 
     std::shared_ptr<FILE> start_recvfile(const udp::endpoint &senderEndpoint, FILE *&file,
                                          const std::vector<char> &optack) override
@@ -275,7 +275,7 @@ public:
         // output the current buffer if needed
         (void)write_behind(file_guard_.get(), false);
 
-        socket_.async_send_to(asio::buffer(ackbuf_, length), clientEndpoint_,
+        socket_.async_send_to(boost::asio::buffer(ackbuf_, length), clientEndpoint_,
                               [this](std::error_code ec, std::size_t /*bytes_sent*/) {
                                   if (ec) {
                                       syslog(LOG_ERR, "tftpd: send_ackbuf: %s\n", ec.message().c_str());
@@ -291,7 +291,7 @@ public:
 
         // Run an asynchronous read operation with a timeout.
         restart_timeout();
-        socket_.async_receive_from(asio::buffer(dp_, MAXPKTSIZE), clientEndpoint_,
+        socket_.async_receive_from(boost::asio::buffer(dp_, MAXPKTSIZE), clientEndpoint_,
                                    [this](std::error_code ec, std::size_t bytes_recvd) {
                                        if (ec) {
                                            syslog(LOG_ERR, "tftpd: read data: %s\n", ec.message().c_str());
@@ -406,11 +406,11 @@ public:
         ap->th_opcode = htons((u_short)ACK);            /* send the "final" ack */
         // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
         ap->th_block = htons((u_short)(block));
-        (void)socket_.send_to(asio::buffer(ackbuf_, TFTP_HEADER), clientEndpoint_);
+        (void)socket_.send_to(boost::asio::buffer(ackbuf_, TFTP_HEADER), clientEndpoint_);
         start_last_timeout();
 
         // Run an asynchronous read operation with a timeout.
-        socket_.async_receive_from(asio::buffer(rxbuf_, sizeof(rxbuf_)), clientEndpoint_,
+        socket_.async_receive_from(boost::asio::buffer(rxbuf_, sizeof(rxbuf_)), clientEndpoint_,
                                    [this](std::error_code ec, std::size_t bytes_recvd) {
                                        if (!ec) {
                                            // NOLINTNEXTLINE(cppcoreguidelines-pro-type-cstyle-cast)
@@ -422,7 +422,8 @@ public:
                                                /* then my last ack was lost, resend final ack */
                                                // NOTE: do not call! send_ackbuf(); CK
                                                syslog(LOG_WARNING, "tftpd: Resend the final ack!");
-                                               (void)socket_.send_to(asio::buffer(ackbuf_, TFTP_HEADER), clientEndpoint_);
+                                               (void)socket_.send_to(boost::asio::buffer(ackbuf_, TFTP_HEADER),
+                                                                     clientEndpoint_);
                                            }
                                        }
                                        cancel_timeout();

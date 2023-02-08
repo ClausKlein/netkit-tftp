@@ -15,16 +15,6 @@ PROJECT_NAME:=$(shell basename $${PWD})
 # begin of config part
 # see https://www.kdab.com/clang-tidy-part-1-modernize-source-code-using-c11c14/
 # and https://github.com/llvm-mirror/clang-tools-extra/blob/master/clang-tidy/tool/run-clang-tidy.py
-#
-### checkAllHeader:='include/spdlog/[acdlstv].*'
-## checkAllHeader?='include/spdlog/[^f].*'
-checkAllHeader?='$(CURDIR)/.*'
-
-# NOTE: there are many errors with boost::test, doctest, catch test framework! CK
-CHECKS?='-*-non-private-member-variables-in-classes,-cppcoreguidelines-pro-bounds-*,-cppcoreguidelines-avoid-*,-cppcoreguidelines-macro-usage,-readability-magic-numbers'
-CHECKS?='-*,cppcoreguidelines-*,-cppcoreguidelines-pro-*,-cppcoreguidelines-avoid-*,-cppcoreguidelines-macro-usage,-cppcoreguidelines-narrowing-*'
-CHECKS?='-*,portability-*,readability-*,-readability-magic-numbers'
-CHECKS?='-*,misc-*,boost-*,cert-*,misc-unused-parameters'
 
 # TODO setup:
 # source /opt/sdhr/SDHR/core/v0.4.1-0-ga6ed523/imx8mm-sdhr/develop/sdk/environment-setup-aarch64-poky-linux
@@ -61,7 +51,7 @@ GENERATOR?=Ninja
 ##################################################
 
 
-BUILD_DIR:=../.build-$(PROJECT_NAME)-${CROSS_COMPILE}$(BUILD_TYPE)
+BUILD_DIR:=$(shell realpath ../.build-$(PROJECT_NAME)-${CROSS_COMPILE}$(BUILD_TYPE))
 ifeq ($(BUILD_TYPE),Coverage)
     USE_LOCV=ON
     ifeq (NO${CROSS_COMPILE},NO)
@@ -81,14 +71,14 @@ test: all
 
 # update CPM.cmake
 update:
-	pip3 install jinja2 Pygments gcovr cmake_format==0.6.13 pyyaml tftpy
+	pip3 install jinja2 Pygments gcovr cmake_format>=0.6.13 pyyaml tftpy
 	wget -q -O cmake/CPM.cmake https://github.com/cpm-cmake/CPM.cmake/releases/latest/download/get_cpm.cmake
 	wget -q -O cmake/WarningsAsErrors.cmake https://raw.githubusercontent.com/approvals/ApprovalTests.cpp/master/CMake/WarningsAsErrors.cmake
 
 
 # NOTE: we do only check the new cpp file! CK
 check: setup .configure-$(BUILD_TYPE) compile_commands.json
-	run-clang-tidy.py -header-filter=$(checkAllHeader) -checks=$(CHECKS) | tee run-clang-tidy.log 2>&1
+	run-clang-tidy.py | tee run-clang-tidy.log 2>&1
 	egrep '\b(warning|error):' run-clang-tidy.log | perl -pe 's/(^.*) (warning|error):/\2/' | sort -u
 
 setup: $(BUILD_DIR) .clang-tidy compile_commands.json
@@ -103,7 +93,7 @@ setup: $(BUILD_DIR) .clang-tidy compile_commands.json
 	touch $@
 
 compile_commands.json: .configure-$(BUILD_TYPE)
-	ln -sf $(CURDIR)/$(BUILD_DIR)/compile_commands.json .
+	ln -sf $(BUILD_DIR)/compile_commands.json .
 
 $(BUILD_DIR): GNUmakefile
 	mkdir -p $@

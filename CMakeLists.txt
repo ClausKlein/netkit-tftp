@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.16...3.23)
+cmake_minimum_required(VERSION 3.21...3.25)
 
 include(before_project_setup OPTIONAL)
 # ===============================
@@ -12,36 +12,19 @@ include(build_options OPTIONAL)
 
 include(GNUInstallDirs)
 
-# ---- Add dependencies via CPM ----
+find_package(
+    Boost 1.81 CONFIG
+    COMPONENTS filesystem
+    REQUIRED
+)
+
+# ---- Add other dependencies via CPM ----
 # see https://github.com/cpm-cmake/CPM.cmake for more info
 
 include(cmake/CPM.cmake)
 
 # PackageProject.cmake will be used to make our target installable
-CPMAddPackage("gh:TheLartians/PackageProject.cmake@1.9.0")
-
-if(EXISTS "$ENV{HOME}/.cache/CPM/boost_1_79_0")
-  set(FETCHCONTENT_SOURCE_DIR_BOOST "$ENV{HOME}/.cache/CPM/boost_1_79_0" CACHE PATH "Boost source DIR")
-endif()
-
-CPMAddPackage(
-  NAME boost-cmake GITHUB_REPOSITORY ClausKlein/boost-cmake
-  GIT_TAG b7c741f42b089117221622c72783d2cb821843dc # feature/upgrade-to-boost-v1.79-0
-)
-
-CPMAddPackage(
-    asio
-    GIT_REPOSITORY https://github.com/ClausKlein/asio.git
-    GIT_TAG fea320c422a5de8d2c48cd02ae42e6251acf0030 # feature/use-cmake-init v1.22.1
-    SOURCE_SUBDIR asio
-)
-
-# CPMAddPackage(
-#   NAME Boost
-#   VERSION 1.79.0
-#   GITHUB_REPOSITORY "boostorg/boost"
-#   GIT_TAG "boost-1.79.0"
-# )
+CPMAddPackage("gh:TheLartians/PackageProject.cmake@1.10.0")
 
 #---------------------------------------------------------------------------------------
 # search required packages and libs
@@ -53,24 +36,6 @@ set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE
 )
 find_package(Threads REQUIRED)
 
-# if(TARGET Boost::filesystem)
-#     option(NETKIT_TFTP_INSTALL "Install targets." ${PROJECT_IS_TOP_LEVEL})
-# else()
-#     message(WARNING "Try to fetch Boost with CPMAddPackage ...")
-#     CPMAddPackage(
-#         Boost
-#         GITHUB_REPOSITORY Orphis/boost-cmake
-#         GIT_TAG d3951bc7f0b9d09005f92aedcf6acfc595f050ea # 1.71.0
-#         OPTIONS "BOOST_LIBS_OPTIONAL filesystem"
-#         # setting FIND_PACKAGE_ARGUMENTS allow usage with `CPM_USE_LOCAL_PACKAGES`
-#         FIND_PACKAGE_ARGUMENTS "COMPONENTS filesystem"
-#     )
-# endif()
-
-#NO! CK set(CMAKE_C_STANDARD_INCLUDE_DIRECTORIES SYSTEM include)
-#XXX add_subdirectory(tftp)
-#XXX add_subdirectory(tftpd)
-
 add_library(
     tftpd STATIC
     async_tftpd_server.cpp
@@ -81,14 +46,16 @@ add_library(
     tftp_subs.cpp
     tftp/tftpsubs.h
 )
-target_link_libraries(
-    tftpd PUBLIC Boost::filesystem asio::asio
-)
-#NO! CK target_include_directories(tftpd SYSTEM PRIVATE include)
+target_link_libraries(tftpd PUBLIC Boost::filesystem Boost::headers)
+target_compile_definitions(tftpd PUBLIC BOOST_ASIO_NO_DEPRECATED)
 target_include_directories(
     tftpd PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
                  $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
+
+if(PROJECT_IS_TOP_LEVEL)
+    include(WarningsAsErrors)
+endif()
 
 #---------------------------------------------------------------------------------------
 # Install and export tftpd-targets
@@ -105,7 +72,7 @@ if(NETKIT_TFTP_INSTALL)
         # EXPORT_HEADER ${EXPORT_HEADER_LOCATION}
         COMPATIBILITY SameMajorVersion
         DISABLE_VERSION_SUFFIX YES
-        DEPENDENCIES "asio 1.22.1; boost 1.79.0"
+        DEPENDENCIES "boost 1.79.0"
     )
     # NOTE: implicit done! add_library(tftpd::tftpd ALIAS tftpd)
     install(FILES async_tftpd_server.hpp
