@@ -24,7 +24,7 @@
         "BUILD_SHARED_LIBS": "NO"
       },
       "environment": {
-        "CMAKE_EXPORT_COMPILE_COMMANDS": "NO",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "YES",
         "CPM_USE_LOCAL_PACKAGES": "NO",
         "CPM_SOURCE_CACHE": "$env{HOME}/.cache/CPM",
         "PATH": "$env{HOME}/.local/bin${pathListSep}$penv{PATH}"
