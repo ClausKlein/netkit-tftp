@@ -204,10 +204,10 @@ ssize_t write_behind(FILE *file, bool /*convert*/)
         return 0; /* just nop if nothing to do */
     }
 
-    ssize_t count = b->counter; /* remember byte count */
-    b->counter = BF_FREE;       /* reset flag */
+    ssize_t const count = b->counter; /* remember byte count */
+    b->counter = BF_FREE;             /* reset flag */
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-cstyle-cast)
-    struct tftphdr *dp = (struct tftphdr *)b->buf;
+    auto *dp = (struct tftphdr *)b->buf;
     nextone = ((nextone + 1) % max_buffer); /* incr for next time */
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
     char *buf = dp->th_data;

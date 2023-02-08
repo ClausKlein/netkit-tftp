@@ -78,7 +78,7 @@ update:
 
 # NOTE: we do only check the new cpp file! CK
 check: setup .configure-$(BUILD_TYPE) compile_commands.json
-	run-clang-tidy.py | tee run-clang-tidy.log 2>&1
+	run-clang-tidy | tee run-clang-tidy.log 2>&1
 	egrep '\b(warning|error):' run-clang-tidy.log | perl -pe 's/(^.*) (warning|error):/\2/' | sort -u
 
 setup: $(BUILD_DIR) .clang-tidy compile_commands.json

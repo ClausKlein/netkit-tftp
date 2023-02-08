@@ -17,7 +17,7 @@ std::string tftpd::receive_file(const char *rootdir, short port, std::function<v
     // make sure the rootdir exists
 
     // NOTE: Creation failure because path resolves to an existing directory is not be treated as an error.
-    boost::filesystem::path dir(rootdir);
+    boost::filesystem::path const dir(rootdir);
     (void)boost::filesystem::create_directory(dir);
 
     io_context.run(); // the server runs here ...

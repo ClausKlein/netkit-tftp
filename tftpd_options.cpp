@@ -189,7 +189,7 @@ static bool set_tsize(uintmax_t *vp)
  */
 static bool set_timeout(uintmax_t *vp) // NOLINT
 {
-    uintmax_t to = *vp;
+    uintmax_t const to = *vp;
 
     if (to < 1 || to > max_timeout) {
         return false;
@@ -206,7 +206,7 @@ static bool set_timeout(uintmax_t *vp) // NOLINT
  */
 static bool set_utimeout(uintmax_t *vp) // NOLINT
 {
-    uintmax_t to = *vp;
+    uintmax_t const to = *vp;
 
     if (to < MS_1K || to > (max_timeout * MS_1K * MS_1K)) {
         return false;
@@ -272,9 +272,9 @@ void do_opt(const char *opt, const char *val, char **ackbuf_ptr)
     for (po = options; po->o_opt != nullptr; po++) {
         if (strcasecmp(po->o_opt, opt) == 0) { // XXX C-style compare
             if (po->o_fnc(&v)) {               // found and the option is valid
-                size_t optlen = strlen(opt);
-                std::string ret_value = std::to_string(v);
-                size_t retlen = ret_value.size();
+                size_t const optlen = strlen(opt);
+                std::string const ret_value = std::to_string(v);
+                size_t const retlen = ret_value.size();
 
                 memcpy(p, opt, optlen + 1);
                 p += optlen + 1;

@@ -143,7 +143,7 @@ protected:
                                        if (!ec && bytes_recvd > 0) {
                                            rxdata_.resize(bytes_recvd);
                                            FILE *file = nullptr;
-                                           int error = tftp(rxdata_, file, file_path_, optack_);
+                                           int const error = tftp(rxdata_, file, file_path_, optack_);
                                            if (error != 0) {
                                                send_error(error);
                                            } else {
@@ -170,7 +170,7 @@ protected:
         std::string err_msg;
 
         // NOLINTNEXTLINE(cppcoreguidelines-pro-type-cstyle-cast)
-        struct tftphdr *tp = (struct tftphdr *)txbuf.data();
+        auto *tp = (struct tftphdr *)txbuf.data();
         tp->th_opcode = htons((u_short)ERROR);
         // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
         tp->th_code = htons((u_short)error);
@@ -189,9 +189,9 @@ protected:
             tp->th_code = htons((u_short)EUNDEF); /* set 'eundef(0)' errorcode */
         }
 
-        size_t extra = TFTP_HEADER + 1; // include strend '\0'
+        size_t const extra = TFTP_HEADER + 1; // include strend '\0'
         err_msg.resize(std::min(err_msg.size(), PKTSIZE - TFTP_HEADER));
-        size_t length = err_msg.size() + extra;
+        size_t const length = err_msg.size() + extra;
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wstringop-overflow"
@@ -260,7 +260,7 @@ public:
         syslog(LOG_NOTICE, "%s\n", BOOST_CURRENT_FUNCTION);
 
         // NOLINTNEXTLINE(cppcoreguidelines-pro-type-cstyle-cast)
-        struct tftphdr *ap = (struct tftphdr *)ackbuf_; /* ptr to ack buffer */
+        auto *ap = (struct tftphdr *)ackbuf_; /* ptr to ack buffer */
         ap->th_opcode = htons((u_short)ACK);
         // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
         ap->th_block = htons((u_short)block);
@@ -297,7 +297,7 @@ public:
                                            syslog(LOG_ERR, "tftpd: read data: %s\n", ec.message().c_str());
                                            receive_block();
                                        } else {
-                                           int err = check_and_write_block(bytes_recvd);
+                                           int const err = check_and_write_block(bytes_recvd);
                                            if (err != 0) {
                                                send_error(err);
                                            }
@@ -331,7 +331,7 @@ public:
                 // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
                 if (dp_->th_block == block) {
                     if (g_tsize != 0) { // NOTE: prevent division by zero! CK
-                        size_t percent = 100UL * (block * g_segsize) / g_tsize;
+                        size_t const percent = 100UL * (block * g_segsize) / g_tsize;
                         if (percent != percent_) {
                             syslog(LOG_NOTICE, "tftpd: Progress: %lu%% received\n", percent);
                             percent_ = percent;
@@ -363,7 +363,7 @@ public:
         // ===============================
         // write the current data segement
         // ===============================
-        size_t seg_length = rxlen - TFTP_HEADER;
+        size_t const seg_length = rxlen - TFTP_HEADER;
         ssize_t written = writeit(file_guard_.get(), &dp_, seg_length, false);
         if (written != static_cast<ssize_t>(seg_length)) { /* ahem */
             int error = ENOSPACE;
@@ -383,7 +383,7 @@ public:
         // write the final data segment
         written = write_behind(file_guard_.get(), false);
         if (written >= 0) {
-            std::string old_path(file_path_ + ".upload");
+            std::string const old_path(file_path_ + ".upload");
             (void)rename(old_path.c_str(), file_path_.c_str());
             syslog(LOG_NOTICE, "tftpd: successfully received file: %s\n", file_path_.c_str());
         } else {
@@ -402,8 +402,8 @@ public:
         syslog(LOG_NOTICE, "%s\n", BOOST_CURRENT_FUNCTION);
 
         // NOLINTNEXTLINE(cppcoreguidelines-pro-type-cstyle-cast)
-        struct tftphdr *ap = (struct tftphdr *)ackbuf_; /* ptr to ack buffer */
-        ap->th_opcode = htons((u_short)ACK);            /* send the "final" ack */
+        auto *ap = (struct tftphdr *)ackbuf_; /* ptr to ack buffer */
+        ap->th_opcode = htons((u_short)ACK);  /* send the "final" ack */
         // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
         ap->th_block = htons((u_short)(block));
         (void)socket_.send_to(boost::asio::buffer(ackbuf_, TFTP_HEADER), clientEndpoint_);
@@ -414,7 +414,7 @@ public:
                                    [this](std::error_code ec, std::size_t bytes_recvd) {
                                        if (!ec) {
                                            // NOLINTNEXTLINE(cppcoreguidelines-pro-type-cstyle-cast)
-                                           struct tftphdr *dp = (struct tftphdr *)rxbuf_;
+                                           auto *dp = (struct tftphdr *)rxbuf_;
                                            if ((bytes_recvd >= TFTP_HEADER) && /* if read some data */
                                                (dp->th_opcode == DATA) &&      /* and got a data block */
                                                // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
@@ -447,10 +447,10 @@ public:
         int j = 0;
         struct sockaddr_storage from = {};
         socklen_t fromlen = 0;
-        int s = socket_.native_handle();
+        int const s = socket_.native_handle();
 
         while (true) {
-            std::size_t i = socket_.available();
+            std::size_t const i = socket_.available();
             if (i != 0) {
                 j++;
                 fromlen = sizeof(from);
