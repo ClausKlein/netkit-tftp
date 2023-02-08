@@ -24,9 +24,9 @@ jobs:
       - name: Install Boost libs
         shell: bash
         run: |
+          pip3 install gcovr tftpy
           sudo apt-get install \
-            llvm-13 clang-13 libclang-13-dev clang-tidy-13 libboost-all-dev ||
-              echo IGNORED
+            llvm-13 clang-13 libclang-13-dev clang-tidy-13 libboost-all-dev
 
       - name: Configure CMake
         # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
