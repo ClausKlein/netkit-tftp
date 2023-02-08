@@ -24,7 +24,7 @@ jobs:
       - name: Install Boost libs
         shell: bash
         run: |
-          pip3 install gcovr tftpy
+          sudo pip3 install gcovr tftpy
           sudo apt-get install \
             llvm-13 clang-13 libclang-13-dev clang-tidy-13 libboost-all-dev
 
