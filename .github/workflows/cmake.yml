@@ -27,13 +27,14 @@ jobs:
           # compiler: ${{ matrix.compiler }}
           cmake: true
           ninja: true
+          gcovr: true
 
-      - name: Install Boost libs and python3 modules
+      - name: Install Boost libs and python3 tftpy
         shell: bash
         run: |
-          sudo pip3 install gcovr tftpy
+          sudo pip3 install tftpy
           sudo apt-get install \
-            llvm-13 clang-13 libclang-13-dev clang-tidy-13 libboost-all-dev
+            llvm-13 clang-13 libclang-13-dev clang-tidy-13 libboost-all-dev ccache
 
       - name: Configure CMake
         # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.

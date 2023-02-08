@@ -7,7 +7,6 @@ set(CMAKE_CXX_STANDARD 20)
 # and -std=c++20 and -std=gnu++20 for example when compiling with PCH enabled
 set(CMAKE_CXX_EXTENSIONS NO)
 
-
 # XXX include(before_project_setup OPTIONAL)
 # ===============================
 project(
@@ -63,7 +62,6 @@ target_include_directories(
 
 if(PROJECT_IS_TOP_LEVEL AND CMAKE_BUILD_TYPE STREQUAL "Debug")
     set(CMAKE_SKIP_INSTALL_RULES TRUE)
-    # XXX NO! include(WarningsAsErrors)
 
     project_options(
         PREFIX
@@ -79,6 +77,7 @@ if(PROJECT_IS_TOP_LEVEL AND CMAKE_BUILD_TYPE STREQUAL "Debug")
         # XXX NO! WARNINGS_AS_ERRORS
         # ENABLE_INCLUDE_WHAT_YOU_USE
     )
+
     if(CMAKE_SKIP_INSTALL_RULES)
         # FIXME: should be PRIVATE! CK
         target_link_libraries(
@@ -86,6 +85,8 @@ if(PROJECT_IS_TOP_LEVEL AND CMAKE_BUILD_TYPE STREQUAL "Debug")
                                    ${PROJECT_NAME}_project_options
         )
     endif()
+else()
+    include(cmake/WarningsAsErrors.cmake)
 endif()
 
 #---------------------------------------------------------------------------------------

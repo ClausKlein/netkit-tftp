@@ -99,7 +99,7 @@ $(BUILD_DIR): GNUmakefile
 	mkdir -p $@
 
 
-format: .clang-format .cmake-format
+format: .clang-format .cmake-format distclean
 	find . -type f \( -name '*.h' -o -name '*.hpp' -o -name '*.c' -o -name '*.cpp' \) -print0 | xargs -0 clang-format -style=file -i
 	find . -type f \( -name '*.cmake' -o -name 'CMakeLists.txt' \) -print0 | xargs -0 cmake-format -i
 
@@ -117,7 +117,7 @@ clean: $(BUILD_DIR)
 	cmake --build $(BUILD_DIR) --target $@
 
 distclean:
-	rm -rf $(BUILD_DIR) .configure-$(BUILD_TYPE) compile_commands.json *~ .*~ tags
+	rm -rf build stagedir $(BUILD_DIR) .configure-$(BUILD_TYPE) compile_commands.json *~ .*~ tags
 	find . -name '*~' -delete
 
 
