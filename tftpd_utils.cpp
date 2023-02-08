@@ -105,8 +105,7 @@ int tftp(const std::vector<char> &rxbuffer, FILE *&file, std::string &file_path,
 
     assert(rxbuffer.size() >= TFTP_HEADER);
 
-    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-cstyle-cast)
-    auto *tp = (struct tftphdr *)(rxbuffer.data());
+    const auto *tp = reinterpret_cast<const struct tftphdr *>(rxbuffer.data());
     u_short const th_opcode = ntohs(tp->th_opcode);
     if ((th_opcode != RRQ) && (th_opcode != WRQ)) {
         syslog(LOG_ERR, "tftpd: invalid opcode request!\n");
@@ -123,7 +122,7 @@ int tftp(const std::vector<char> &rxbuffer, FILE *&file, std::string &file_path,
     optack.resize(PKTSIZE);
     char *pktbuf = optack.data();
     char *ap = pktbuf + 2;
-    ((struct tftphdr *)pktbuf)->th_opcode = htons(OACK); // NOLINT
+    (reinterpret_cast<struct tftphdr *>(pktbuf))->th_opcode = htons(OACK);
 
     int argn = 0;
     const struct formats *pf = nullptr;

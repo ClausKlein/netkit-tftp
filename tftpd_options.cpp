@@ -144,8 +144,7 @@ static bool set_blksize2(uintmax_t *vp)
 
 /***
  * Set the block number rollover value
- * NOLINTNEXTLINE(readability-non-const-parameter)
-static bool set_rollover(uintmax_t *vp) // NOLINT
+static bool set_rollover(uintmax_t *vp)
 {
     uintmax_t ro = *vp;
 
@@ -185,9 +184,8 @@ static bool set_tsize(uintmax_t *vp)
  * Set the timeout (c.f. RFC2349).  This is supposed
  * to be the (default) retransmission timeout, but being an
  * integer in seconds it seems a bit limited.
- * NOLINTNEXTLINE(readability-non-const-parameter)
  */
-static bool set_timeout(uintmax_t *vp) // NOLINT
+static bool set_timeout(uintmax_t *vp)
 {
     uintmax_t const to = *vp;
 
@@ -202,9 +200,8 @@ static bool set_timeout(uintmax_t *vp) // NOLINT
 
 /*
  * Similar, but in microseconds.  We allow down to 10 ms.
- * NOLINTNEXTLINE(readability-non-const-parameter)
  */
-static bool set_utimeout(uintmax_t *vp) // NOLINT
+static bool set_utimeout(uintmax_t *vp)
 {
     uintmax_t const to = *vp;
 
@@ -219,7 +216,6 @@ static bool set_utimeout(uintmax_t *vp) // NOLINT
 
 /***
  * Set window size (c.f. RFC7440)
- * NOLINTNEXTLINE(readability-non-const-parameter)
 static bool set_windowsize(uintmax_t *vp)
 {
     if (*vp < 1 || *vp > max_windowsize) {
