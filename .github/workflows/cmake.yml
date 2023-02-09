@@ -24,52 +24,52 @@ jobs:
       matrix:
         os: [macos, ubuntu]
 
-      runs-on: ${{ matrix.os }}-latest
+    runs-on: ${{ matrix.os }}-latest
 
-      steps:
-        - uses: actions/checkout@v3
+    steps:
+      - uses: actions/checkout@v3
 
-        - uses: actions/cache@v3
-          with:
-            path: "**/cpm_modules"
-            key: ${{ github.workflow }}-cpm-modules-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake') }}
+      - uses: actions/cache@v3
+        with:
+          path: "**/cpm_modules"
+          key: ${{ github.workflow }}-cpm-modules-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake') }}
 
-        - name: Setup Cpp
-          uses: aminya/setup-cpp@v1
-          with:
-            cmake: true
-            ninja: true
-            gcovr: true
-            clangtidy: true
+      - name: Setup Cpp
+        uses: aminya/setup-cpp@v1
+        with:
+          cmake: true
+          ninja: true
+          gcovr: true
+          clangtidy: true
 
-        - name: Install boost filesystem libs and python3 tftpy module on macos
-          if: startsWith(matrix.os, 'macos')
-          shell: bash
-          run: |
-            sudo pip3 install tftpy
-            brew install boost ccache
+      - name: Install boost filesystem libs and python3 tftpy module on macos
+        if: startsWith(matrix.os, 'macos')
+        shell: bash
+        run: |
+          sudo pip3 install tftpy
+          brew install boost ccache
 
-        - name: Install boost tftpy module on ubuntu
-          if: startsWith(matrix.os, 'ubuntu')
-          shell: bash
-          run: |
-            sudo pip3 install tftpy
-            sudo apt-get install libboost-filesystem-dev ccache
+      - name: Install boost tftpy module on ubuntu
+        if: startsWith(matrix.os, 'ubuntu')
+        shell: bash
+        run: |
+          sudo pip3 install tftpy
+          sudo apt-get install libboost-filesystem-dev ccache
 
-        - name: Configure CMake
-          # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
-          # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
-          run: cmake -G Ninja -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
+      - name: Configure CMake
+        # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
+        # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
+        run: cmake -G Ninja -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
 
-        - name: Build
-          # Build your program with the given configuration
-          run: cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}}
+      - name: Build
+        # Build your program with the given configuration
+        run: cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}}
 
-        - name: Test
-          working-directory: ${{github.workspace}}/build
-          # Execute tests defined by the CMake configuration.
-          # See https://cmake.org/cmake/help/latest/manual/ctest.1.html for more detail
-          run: sudo ctest -C ${{env.BUILD_TYPE}} --verbose
+      - name: Test
+        working-directory: ${{github.workspace}}/build
+        # Execute tests defined by the CMake configuration.
+        # See https://cmake.org/cmake/help/latest/manual/ctest.1.html for more detail
+        run: sudo ctest -C ${{env.BUILD_TYPE}} --verbose
 
-        - name: TestCoverage
-          run: gcovr -e option_test.cpp -e tftpd_test.cpp .
+      - name: TestCoverage
+        run: gcovr -e option_test.cpp -e tftpd_test.cpp .
