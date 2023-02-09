@@ -35,6 +35,7 @@ jobs:
           key: ${{ github.workflow }}-cpm-modules-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake') }}
 
       - name: Setup Cpp
+        if: startsWith(matrix.os, 'ubuntu')
         uses: aminya/setup-cpp@v1
         with:
           cmake: true
@@ -46,8 +47,8 @@ jobs:
         if: startsWith(matrix.os, 'macos')
         shell: bash
         run: |
-          sudo pip3 install tftpy
-          brew install boost ccache
+          sudo pip3 install tftpy gcovr
+          brew install boost ccache cmake ninja
 
       - name: Install boost tftpy module on ubuntu
         if: startsWith(matrix.os, 'ubuntu')
