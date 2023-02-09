@@ -28,11 +28,11 @@ jobs:
           ninja: true
           gcovr: true
 
-      - name: Install boost libs and python3 tftpy module
+      - name: Install boost filesystem libs and python3 tftpy module
         shell: bash
         run: |
           sudo pip3 install tftpy
-          sudo apt-get install libboost-all-dev ccache
+          sudo apt-get install libboost-filesystem-dev ccache
 
       - name: Configure CMake
         # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
