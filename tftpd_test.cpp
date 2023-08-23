@@ -17,7 +17,7 @@ int main(int argc, char *argv[])
             return 0; // OK
         }
 
-        auto port = std::strtol(argv[1], nullptr, 10);
+        auto port = static_cast<uint16_t>(std::strtoul(argv[1], nullptr, 10));
         auto filename = tftpd::receive_file("/tmp/tftpboot", port, PrintNum());
         if (!filename.empty()) {
             std::cout << "Successfully received: " << filename << "\n\n";

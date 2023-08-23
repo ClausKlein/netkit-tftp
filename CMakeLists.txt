@@ -1,20 +1,40 @@
 cmake_minimum_required(VERSION 3.21...3.27)
 
-include(before_project_setup OPTIONAL)
+# Not ideal to use this global variable, but necessary to make sure that tooling and projects use
+# the same version
+set(CMAKE_CXX_STANDARD 20)
+
+# strongly encouraged to enable this globally to avoid conflicts between -Wpedantic being enabled
+# and -std=c++20 and -std=gnu++20 for example when compiling with PCH enabled
+set(CMAKE_CXX_EXTENSIONS NO)
+
+# XXX include(before_project_setup OPTIONAL)
 # ===============================
 project(
-    tftpd # ORIG: netkit-tftp
-    VERSION 0.17.6
+    tftpd # ORIG: netkit-tftp v0.17.6
+    VERSION 1.0.0
     LANGUAGES CXX
 )
 # ===============================
-include(build_options OPTIONAL)
+# XXX include(build_options OPTIONAL)
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
 include(GNUInstallDirs)
 
-# ---- Add dependencies via CPM ----
+#---------------------------------------------------------------------------------------
+# search required packages and libs
+#---------------------------------------------------------------------------------------
+
+find_package(
+    Boost 1.71 CONFIG
+    COMPONENTS filesystem
+    REQUIRED
+)
+
+find_package(Threads REQUIRED)
+
+# ---- Add other dependencies via CPM ----
 # see https://github.com/cpm-cmake/CPM.cmake for more info
 
 include(cmake/CPM.cmake)
@@ -22,56 +42,9 @@ include(cmake/CPM.cmake)
 # PackageProject.cmake will be used to make our target installable
 CPMAddPackage("gh:TheLartians/PackageProject.cmake@1.10.0")
 
-if(EXISTS "$ENV{HOME}/.cache/CPM/boost_1_79_0")
-  set(FETCHCONTENT_SOURCE_DIR_BOOST "$ENV{HOME}/.cache/CPM/boost_1_79_0" CACHE PATH "Boost source DIR")
-endif()
-
-CPMAddPackage(
-  NAME boost-cmake GITHUB_REPOSITORY ClausKlein/boost-cmake
-  GIT_TAG b7c741f42b089117221622c72783d2cb821843dc # feature/upgrade-to-boost-v1.79-0
-)
-
-CPMAddPackage(
-    asio
-    GIT_REPOSITORY https://github.com/ClausKlein/asio.git
-    GIT_TAG 191d8f704f3989cbffca53a9d125f0a5bb7c703b # feature/use-cmake-init v1.22.1
-    SOURCE_SUBDIR asio
-)
-
-# CPMAddPackage(
-#   NAME Boost
-#   VERSION 1.79.0
-#   GITHUB_REPOSITORY "boostorg/boost"
-#   GIT_TAG "boost-1.79.0"
-# )
-
-#---------------------------------------------------------------------------------------
-# search required packages and libs
-#---------------------------------------------------------------------------------------
-# This variable controls whether the CMAKE_FIND_ROOT_PATH and CMAKE_SYSROOT are used by find_package().
-set(CMAKE_FIND_ROOT_PATH_MODE_PACKAGE
-    BOTH
-    CACHE STRING "NOTE: forced value!" FORCE
-)
-find_package(Threads REQUIRED)
-
-# if(TARGET Boost::filesystem)
-#     option(NETKIT_TFTP_INSTALL "Install targets." ${PROJECT_IS_TOP_LEVEL})
-# else()
-#     message(WARNING "Try to fetch Boost with CPMAddPackage ...")
-#     CPMAddPackage(
-#         Boost
-#         GITHUB_REPOSITORY Orphis/boost-cmake
-#         GIT_TAG d3951bc7f0b9d09005f92aedcf6acfc595f050ea # 1.71.0
-#         OPTIONS "BOOST_LIBS_OPTIONAL filesystem"
-#         # setting FIND_PACKAGE_ARGUMENTS allow usage with `CPM_USE_LOCAL_PACKAGES`
-#         FIND_PACKAGE_ARGUMENTS "COMPONENTS filesystem"
-#     )
-# endif()
-
-#NO! CK set(CMAKE_C_STANDARD_INCLUDE_DIRECTORIES SYSTEM include)
-#XXX add_subdirectory(tftp)
-#XXX add_subdirectory(tftpd)
+# see https://github.com/aminya/project_options for more info
+CPMAddPackage("gh:aminya/project_options@0.26.1")
+# XXX list(APPEND CMAKE_MODULE_PATH ${project_options_SOURCE_DIR})
 
 add_library(
     tftpd STATIC
@@ -83,19 +56,46 @@ add_library(
     tftp_subs.cpp
     tftp/tftpsubs.h
 )
-target_link_libraries(
-    tftpd PUBLIC Boost::filesystem asio::asio
-)
-#NO! CK target_include_directories(tftpd SYSTEM PRIVATE include)
+target_link_libraries(${PROJECT_NAME} PUBLIC Boost::filesystem Boost::headers Threads::Threads)
+target_compile_definitions(${PROJECT_NAME} PUBLIC BOOST_ASIO_NO_DEPRECATED)
 target_include_directories(
-    tftpd PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
-                 $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+    ${PROJECT_NAME} PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
+                           $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
 )
+
+if(PROJECT_IS_TOP_LEVEL AND CMAKE_BUILD_TYPE STREQUAL "Debug")
+    set(CMAKE_SKIP_INSTALL_RULES TRUE)
+
+    project_options(
+        PREFIX
+        ${PROJECT_NAME}
+        ENABLE_CACHE
+        ENABLE_COVERAGE
+        ENABLE_CLANG_TIDY
+        ENABLE_SANITIZER_ADDRESS
+        ENABLE_SANITIZER_UNDEFINED_BEHAVIOR
+        # ENABLE_SANITIZER_LEAK
+        # ENABLE_SANITIZER_THREAD
+        # ENABLE_SANITIZER_MEMORY
+        # XXX NO! WARNINGS_AS_ERRORS
+        # ENABLE_INCLUDE_WHAT_YOU_USE
+    )
+
+    if(CMAKE_SKIP_INSTALL_RULES)
+        # FIXME: should be PRIVATE! CK
+        target_link_libraries(
+            ${PROJECT_NAME} PUBLIC ${PROJECT_NAME}_project_warnings
+                                   ${PROJECT_NAME}_project_options
+        )
+    endif()
+else()
+    include(cmake/WarningsAsErrors.cmake)
+endif()
 
 #---------------------------------------------------------------------------------------
 # Install and export tftpd-targets
 #---------------------------------------------------------------------------------------
-if(NETKIT_TFTP_INSTALL)
+if(NOT CMAKE_SKIP_INSTALL_RULES)
     packageProject(
         NAME ${PROJECT_NAME}
         VERSION ${PROJECT_VERSION}
@@ -107,12 +107,14 @@ if(NETKIT_TFTP_INSTALL)
         # EXPORT_HEADER ${EXPORT_HEADER_LOCATION}
         COMPATIBILITY SameMajorVersion
         DISABLE_VERSION_SUFFIX YES
-        DEPENDENCIES "asio 1.22.1; boost 1.79.0"
+        DEPENDENCIES "boost 1.71"
     )
     # NOTE: implicit done! add_library(tftpd::tftpd ALIAS tftpd)
     install(FILES async_tftpd_server.hpp
             DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
     )
+
+    include(CPack)
 endif()
 
 #---------------------------------------------------------------------------------------
@@ -129,23 +131,13 @@ if(NETKIT_TFTP_TESTS)
 
     add_executable(tftpd_test tftpd_test.cpp async_tftpd_server.hpp)
     target_link_libraries(tftpd_test PRIVATE tftpd)
-    add_test(
-        NAME tftpd_test
-        COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/test.sh
-        WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-    )
 
-    # test coverage option
-    if(CMAKE_BUILD_TYPE STREQUAL "Coverage")
-        include(CodeCoverage)
-
-        set(COVERAGE_EXCLUDES
-            '/usr/*' '/opt/*' '${CMAKE_CURRENT_SOURCE_DIR}/tftp/*'
-            '${CMAKE_CURRENT_SOURCE_DIR}/tftpd/*' '/Applications/Xcode.app/*'
-        )
-        setup_target_for_coverage(
-            NAME lcov # custom target.
-            EXECUTABLE ctest # the test driver executable that runs the tests.
+    if(UNIX)
+        add_test(
+            NAME tftpd_test
+            COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/test.sh
+            WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
         )
     endif()
+
 endif()

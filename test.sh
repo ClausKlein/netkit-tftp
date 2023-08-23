@@ -124,7 +124,7 @@ if test "${UNAME}" == "Linux"; then
     ${TFTP} --blksize=65536 --upload=test64k.dat --input=test64k.dat
     wait
 else
-    dd if=/dev/zero of=test64m.dat bs=1m count=64
+    /bin/dd if=/dev/zero of=test64m.dat bs=1m count=64
 
     bin/tftpd_test 1234 &
     sleep 1
@@ -158,8 +158,8 @@ fi
 ##############################################
 
 ##############################################
-# upload large file > 135K:
-# NOTE: must fail, disk full!
+# upload large file > 224K:
+echo "NOTE: must fail, disk full!"
 if test "${UNAME}" == "Linux"; then
     bin/tftpd_test 1234 &
     sleep 1
@@ -168,7 +168,7 @@ if test "${UNAME}" == "Linux"; then
     wait
 fi
 ##############################################
-## absolut path upload must fail
+echo "NOTE: absolut path upload must fail!"
 dd if=bin/tftpd_test of=test32k.dat bs=1024 count=32
 bin/tftpd_test 1234 &
 sleep 1
