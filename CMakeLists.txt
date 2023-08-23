@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.16...3.23)
+cmake_minimum_required(VERSION 3.21...3.27)
 
 include(before_project_setup OPTIONAL)
 # ===============================
@@ -10,6 +10,8 @@ project(
 # ===============================
 include(build_options OPTIONAL)
 
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+
 include(GNUInstallDirs)
 
 # ---- Add dependencies via CPM ----
@@ -18,7 +20,7 @@ include(GNUInstallDirs)
 include(cmake/CPM.cmake)
 
 # PackageProject.cmake will be used to make our target installable
-CPMAddPackage("gh:TheLartians/PackageProject.cmake@1.9.0")
+CPMAddPackage("gh:TheLartians/PackageProject.cmake@1.10.0")
 
 if(EXISTS "$ENV{HOME}/.cache/CPM/boost_1_79_0")
   set(FETCHCONTENT_SOURCE_DIR_BOOST "$ENV{HOME}/.cache/CPM/boost_1_79_0" CACHE PATH "Boost source DIR")
@@ -32,7 +34,7 @@ CPMAddPackage(
 CPMAddPackage(
     asio
     GIT_REPOSITORY https://github.com/ClausKlein/asio.git
-    GIT_TAG fea320c422a5de8d2c48cd02ae42e6251acf0030 # feature/use-cmake-init v1.22.1
+    GIT_TAG 191d8f704f3989cbffca53a9d125f0a5bb7c703b # feature/use-cmake-init v1.22.1
     SOURCE_SUBDIR asio
 )
 
