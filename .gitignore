@@ -8,4 +8,5 @@ tftpd/tftpsubs.c
 tftpd/tftpsubs.h
 lcov/
 build/
+stagedir/
 __pycache__/

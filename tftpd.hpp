@@ -18,10 +18,11 @@
  */
 #include "tftp/tftpsubs.h"
 
-#include <asio/ts/buffer.hpp>
-#include <asio/ts/internet.hpp>
+#include <boost/asio/ts/buffer.hpp>
+#include <boost/asio/ts/internet.hpp>
 #include <boost/current_function.hpp>
 
+#include <atomic>
 #include <chrono>
 #include <cstdlib>
 #include <cstring> // strncpy still used! CK
@@ -66,13 +67,13 @@ static const errmsg errmsgs[] = {{EUNDEF, "Undefined error code"},
                                  {-1, nullptr}};
 
 //----------------------------------------------------------------------
-using asio::ip::udp;
+using boost::asio::ip::udp;
 //----------------------------------------------------------------------
 
 class server
 {
 public:
-    server(asio::io_context &io_context, short port)
+    server(boost::asio::io_context &io_context, uint16_t port)
         : socket_(io_context, udp::endpoint(udp::v4(), port)), timer_(io_context), timeout_(rexmtval)
     {
         start_timeout(maxtimeout); // max idle wait ...
@@ -138,12 +139,12 @@ protected:
         syslog(LOG_NOTICE, "%s\n", BOOST_CURRENT_FUNCTION);
 
         rxdata_.resize(PKTSIZE);
-        socket_.async_receive_from(asio::buffer(rxdata_, PKTSIZE), senderEndpoint_,
+        socket_.async_receive_from(boost::asio::buffer(rxdata_, PKTSIZE), senderEndpoint_,
                                    [this](std::error_code ec, std::size_t bytes_recvd) {
                                        if (!ec && bytes_recvd > 0) {
                                            rxdata_.resize(bytes_recvd);
                                            FILE *file = nullptr;
-                                           int error = tftp(rxdata_, file, file_path_, optack_);
+                                           int const error = tftp(rxdata_, file, file_path_, optack_);
                                            if (error != 0) {
                                                send_error(error);
                                            } else {
@@ -169,11 +170,10 @@ protected:
         txbuf.resize(PKTSIZE);
         std::string err_msg;
 
-        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-cstyle-cast)
-        struct tftphdr *tp = (struct tftphdr *)txbuf.data();
-        tp->th_opcode = htons((u_short)ERROR);
+        auto *tp = reinterpret_cast<struct tftphdr *>(txbuf.data());
+        tp->th_opcode = htons(static_cast<u_short>(ERROR));
         // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
-        tp->th_code = htons((u_short)error);
+        tp->th_code = htons(static_cast<u_short>(error));
         for (pe = errmsgs; pe->e_code >= 0; pe++) {
             if (pe->e_code == error) {
                 err_msg = pe->e_msg;
@@ -186,20 +186,17 @@ protected:
             err_msg = strerror(error - ERRNO_OFFSET);
             syslog(LOG_ERR, "tftpd: send_error(%d): %s\n", (error - ERRNO_OFFSET), err_msg.c_str());
             // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
-            tp->th_code = htons((u_short)EUNDEF); /* set 'eundef(0)' errorcode */
+            tp->th_code = htons(static_cast<u_short>(EUNDEF)); /* set 'eundef(0)' errorcode */
         }
 
-        size_t extra = TFTP_HEADER + 1; // include strend '\0'
+        size_t const extra = TFTP_HEADER + 1; // include strend '\0'
         err_msg.resize(std::min(err_msg.size(), PKTSIZE - TFTP_HEADER));
-        size_t length = err_msg.size() + extra;
+        size_t const length = err_msg.size() + extra;
 
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wstringop-overflow"
         // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
         (void)strncpy(tp->th_msg, err_msg.c_str(), length);
-#pragma GCC diagnostic pop
 
-        txbuf.resize(std::min(length, (size_t)PKTSIZE));
+        txbuf.resize(std::min(length, static_cast<size_t>(PKTSIZE)));
 
         do_send_error(txbuf);
     }
@@ -208,7 +205,7 @@ protected:
     {
         syslog(LOG_NOTICE, "%s\n", BOOST_CURRENT_FUNCTION);
 
-        socket_.async_send_to(asio::buffer(txdata), senderEndpoint_,
+        socket_.async_send_to(boost::asio::buffer(txdata), senderEndpoint_,
                               [this](std::error_code /*ec*/, std::size_t /*bytes_sent*/) {
                                   // XXX if (ec) { syslog(LOG_ERR, "do_send_error: %s\n", ec.message().c_str()); }
                                   // TODO: now we have no timer running, the run loop terminates
@@ -224,16 +221,16 @@ protected:
     std::vector<char> optack_;         // NOLINT(cppcoreguidelines-non-private-member-variables-in-classes)
 
 private:
-    asio::steady_timer timer_;
+    boost::asio::steady_timer timer_;
     std::vector<char> rxdata_;
     int timeout_;
-    bool last_timeout_ = {false};
+    bool last_timeout_{false};
 };
 
 class receiver : public server
 {
 public:
-    receiver(asio::io_context &io_context, short port) : server(io_context, port) {}
+    receiver(boost::asio::io_context &io_context, uint16_t port) : server(io_context, port) {}
 
     std::shared_ptr<FILE> start_recvfile(const udp::endpoint &senderEndpoint, FILE *&file,
                                          const std::vector<char> &optack) override
@@ -259,11 +256,10 @@ public:
     {
         syslog(LOG_NOTICE, "%s\n", BOOST_CURRENT_FUNCTION);
 
-        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-cstyle-cast)
-        struct tftphdr *ap = (struct tftphdr *)ackbuf_; /* ptr to ack buffer */
-        ap->th_opcode = htons((u_short)ACK);
+        auto *ap = reinterpret_cast<struct tftphdr *>(ackbuf_); /* ptr to ack buffer */
+        ap->th_opcode = htons(static_cast<u_short>(ACK));
         // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
-        ap->th_block = htons((u_short)block);
+        ap->th_block = htons(static_cast<u_short>(block));
         block++;
         send_ackbuf();
     }
@@ -275,7 +271,7 @@ public:
         // output the current buffer if needed
         (void)write_behind(file_guard_.get(), false);
 
-        socket_.async_send_to(asio::buffer(ackbuf_, length), clientEndpoint_,
+        socket_.async_send_to(boost::asio::buffer(ackbuf_, length), clientEndpoint_,
                               [this](std::error_code ec, std::size_t /*bytes_sent*/) {
                                   if (ec) {
                                       syslog(LOG_ERR, "tftpd: send_ackbuf: %s\n", ec.message().c_str());
@@ -291,13 +287,13 @@ public:
 
         // Run an asynchronous read operation with a timeout.
         restart_timeout();
-        socket_.async_receive_from(asio::buffer(dp_, MAXPKTSIZE), clientEndpoint_,
+        socket_.async_receive_from(boost::asio::buffer(dp_, MAXPKTSIZE), clientEndpoint_,
                                    [this](std::error_code ec, std::size_t bytes_recvd) {
                                        if (ec) {
                                            syslog(LOG_ERR, "tftpd: read data: %s\n", ec.message().c_str());
                                            receive_block();
                                        } else {
-                                           int err = check_and_write_block(bytes_recvd);
+                                           int const err = check_and_write_block(bytes_recvd);
                                            if (err != 0) {
                                                send_error(err);
                                            }
@@ -307,7 +303,8 @@ public:
 
     int check_and_write_block(size_t rxlen)
     {
-        syslog(LOG_NOTICE, "%s(%d, len=%lu)\n", BOOST_CURRENT_FUNCTION, block, rxlen);
+        const uint16_t tmp = block;
+        syslog(LOG_NOTICE, "%s(%u, len=%lu)\n", BOOST_CURRENT_FUNCTION, tmp, rxlen);
 
 #if 0
         if (senderEndpoint_ != clientEndpoint_) {
@@ -331,7 +328,7 @@ public:
                 // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
                 if (dp_->th_block == block) {
                     if (g_tsize != 0) { // NOTE: prevent division by zero! CK
-                        size_t percent = 100UL * (block * g_segsize) / g_tsize;
+                        size_t const percent = 100UL * (block * g_segsize) / g_tsize;
                         if (percent != percent_) {
                             syslog(LOG_NOTICE, "tftpd: Progress: %lu%% received\n", percent);
                             percent_ = percent;
@@ -363,7 +360,7 @@ public:
         // ===============================
         // write the current data segement
         // ===============================
-        size_t seg_length = rxlen - TFTP_HEADER;
+        size_t const seg_length = rxlen - TFTP_HEADER;
         ssize_t written = writeit(file_guard_.get(), &dp_, seg_length, false);
         if (written != static_cast<ssize_t>(seg_length)) { /* ahem */
             int error = ENOSPACE;
@@ -383,7 +380,7 @@ public:
         // write the final data segment
         written = write_behind(file_guard_.get(), false);
         if (written >= 0) {
-            std::string old_path(file_path_ + ".upload");
+            std::string const old_path(file_path_ + ".upload");
             (void)rename(old_path.c_str(), file_path_.c_str());
             syslog(LOG_NOTICE, "tftpd: successfully received file: %s\n", file_path_.c_str());
         } else {
@@ -401,20 +398,18 @@ public:
     {
         syslog(LOG_NOTICE, "%s\n", BOOST_CURRENT_FUNCTION);
 
-        // NOLINTNEXTLINE(cppcoreguidelines-pro-type-cstyle-cast)
-        struct tftphdr *ap = (struct tftphdr *)ackbuf_; /* ptr to ack buffer */
-        ap->th_opcode = htons((u_short)ACK);            /* send the "final" ack */
+        auto *ap = reinterpret_cast<struct tftphdr *>(ackbuf_); /* ptr to ack buffer */
+        ap->th_opcode = htons(static_cast<u_short>(ACK));       /* send the "final" ack */
         // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
-        ap->th_block = htons((u_short)(block));
-        (void)socket_.send_to(asio::buffer(ackbuf_, TFTP_HEADER), clientEndpoint_);
+        ap->th_block = htons(static_cast<u_short>(block));
+        (void)socket_.send_to(boost::asio::buffer(ackbuf_, TFTP_HEADER), clientEndpoint_);
         start_last_timeout();
 
         // Run an asynchronous read operation with a timeout.
-        socket_.async_receive_from(asio::buffer(rxbuf_, sizeof(rxbuf_)), clientEndpoint_,
+        socket_.async_receive_from(boost::asio::buffer(rxbuf_, sizeof(rxbuf_)), clientEndpoint_,
                                    [this](std::error_code ec, std::size_t bytes_recvd) {
                                        if (!ec) {
-                                           // NOLINTNEXTLINE(cppcoreguidelines-pro-type-cstyle-cast)
-                                           struct tftphdr *dp = (struct tftphdr *)rxbuf_;
+                                           auto *dp = reinterpret_cast<struct tftphdr *>(rxbuf_);
                                            if ((bytes_recvd >= TFTP_HEADER) && /* if read some data */
                                                (dp->th_opcode == DATA) &&      /* and got a data block */
                                                // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
@@ -422,7 +417,8 @@ public:
                                                /* then my last ack was lost, resend final ack */
                                                // NOTE: do not call! send_ackbuf(); CK
                                                syslog(LOG_WARNING, "tftpd: Resend the final ack!");
-                                               (void)socket_.send_to(asio::buffer(ackbuf_, TFTP_HEADER), clientEndpoint_);
+                                               (void)socket_.send_to(boost::asio::buffer(ackbuf_, TFTP_HEADER),
+                                                                     clientEndpoint_);
                                            }
                                        }
                                        cancel_timeout();
@@ -446,15 +442,14 @@ public:
         int j = 0;
         struct sockaddr_storage from = {};
         socklen_t fromlen = 0;
-        int s = socket_.native_handle();
+        int const s = socket_.native_handle();
 
         while (true) {
-            std::size_t i = socket_.available();
+            std::size_t const i = socket_.available();
             if (i != 0) {
                 j++;
                 fromlen = sizeof(from);
-                // NOLINTNEXTLINE(cppcoreguidelines-pro-type-cstyle-cast)
-                (void)recvfrom(s, rxbuf_, sizeof(rxbuf_), 0, (struct sockaddr *)&from, &fromlen);
+                (void)recvfrom(s, rxbuf_, sizeof(rxbuf_), 0, reinterpret_cast<struct sockaddr *>(&from), &fromlen);
             } else {
                 if (j != 0) {
                     syslog(LOG_WARNING, "tftpd: Discarded %d packets\n", j);
@@ -465,11 +460,11 @@ public:
     }
 
 private:
-    struct tftphdr *dp_ = {nullptr};
+    struct tftphdr *dp_{nullptr};
     udp::endpoint clientEndpoint_;
-    char ackbuf_[PKTSIZE] = {};
-    char rxbuf_[MAXPKTSIZE] = {};
-    volatile u_int16_t block = {0};
-    size_t percent_ = {0};
+    char ackbuf_[PKTSIZE]{};
+    char rxbuf_[MAXPKTSIZE]{};
+    std::atomic<u_int16_t> block{0};
+    size_t percent_{0};
 };
 } // namespace tftpd

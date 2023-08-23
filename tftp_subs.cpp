@@ -90,8 +90,7 @@ struct tftphdr *rw_init(int x)
     current = 0;
     bfs[1].counter = BF_FREE;
     nextone = x; /* ahead or behind? */
-    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-cstyle-cast)
-    return (struct tftphdr *)bfs[0].buf;
+    return reinterpret_cast<struct tftphdr *>(bfs[0].buf);
 }
 
 #if 0
@@ -183,8 +182,7 @@ ssize_t writeit(FILE *file, struct tftphdr **dpp, size_t count, bool convert)
     }
     // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-constant-array-index)
     bfs[current].counter = BF_ALLOC; /* mark as alloc'd */
-    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-cstyle-cast)
-    *dpp = (struct tftphdr *)bfs[current].buf;
+    *dpp = reinterpret_cast<struct tftphdr *>(bfs[current].buf);
     return written; // this may a lie of course!
 }
 
@@ -204,10 +202,9 @@ ssize_t write_behind(FILE *file, bool /*convert*/)
         return 0; /* just nop if nothing to do */
     }
 
-    ssize_t count = b->counter; /* remember byte count */
-    b->counter = BF_FREE;       /* reset flag */
-    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-cstyle-cast)
-    struct tftphdr *dp = (struct tftphdr *)b->buf;
+    ssize_t const count = b->counter; /* remember byte count */
+    b->counter = BF_FREE;             /* reset flag */
+    auto *dp = reinterpret_cast<struct tftphdr *>(b->buf);
     nextone = ((nextone + 1) % max_buffer); /* incr for next time */
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
     char *buf = dp->th_data;

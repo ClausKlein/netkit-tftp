@@ -10,26 +10,35 @@ Checks:
     -cert-err58-cpp,
     clang-analyzer-*,
     cppcoreguidelines-*,
+    -cppcoreguidelines-avoid-*,
+    -cppcoreguidelines-macro-usage,
     -cppcoreguidelines-owning-memory,
     -cppcoreguidelines-pro-bounds-*,
-    -cppcoreguidelines-pro-bounds-array-to-pointer-decay,
+    -cppcoreguidelines-pro-type-reinterpret-cast,
     -cppcoreguidelines-pro-type-vararg,
     -cppcoreguidelines-special-member-functions,
+    hicpp-*,
+    -hicpp-no-array-decay,
+    -hicpp-signed-bitwise,
+    -hicpp-vararg,
     misc-*,
+    -misc-non-private-member-variables-in-classes,
     modernize-*,
-    -modernize-use-*,
+    -modernize-macro-to-enum,
+    -modernize-use-trailing-return-type,
     -modernize-avoid-c-arrays,
     performance-*,
     portability-*,
     readability-*,
+    -readability-function-cognitive-complexity,
+    -readability-identifier-length,
+    -*avoid-c-arrays,
+    -*magic-numbers,
 '
 
-#
-#TODO: path to your project headers only! CK
-#
 HeaderFilterRegex:
     '.*'
 
-#TBD: this is realy pedantic! CK
+#TODO: this is not realy pedantic! CK
 WarningsAsErrors:
     'clang-diagnostic-error'

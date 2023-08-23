@@ -105,9 +105,8 @@ int tftp(const std::vector<char> &rxbuffer, FILE *&file, std::string &file_path,
 
     assert(rxbuffer.size() >= TFTP_HEADER);
 
-    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-cstyle-cast)
-    struct tftphdr *tp = (struct tftphdr *)(rxbuffer.data());
-    u_short th_opcode = ntohs(tp->th_opcode);
+    const auto *tp = reinterpret_cast<const struct tftphdr *>(rxbuffer.data());
+    u_short const th_opcode = ntohs(tp->th_opcode);
     if ((th_opcode != RRQ) && (th_opcode != WRQ)) {
         syslog(LOG_ERR, "tftpd: invalid opcode request!\n");
         return (EBADID);
@@ -123,7 +122,7 @@ int tftp(const std::vector<char> &rxbuffer, FILE *&file, std::string &file_path,
     optack.resize(PKTSIZE);
     char *pktbuf = optack.data();
     char *ap = pktbuf + 2;
-    ((struct tftphdr *)pktbuf)->th_opcode = htons(OACK); // NOLINT
+    (reinterpret_cast<struct tftphdr *>(pktbuf))->th_opcode = htons(OACK);
 
     int argn = 0;
     const struct formats *pf = nullptr;
@@ -159,7 +158,7 @@ int tftp(const std::vector<char> &rxbuffer, FILE *&file, std::string &file_path,
 
             // NOTE: set g_tsize and tsize_ok flag in case of RRQ (unsupported yet)! CK
             file_path = filename;
-            int ecode = validate_access(file_path, th_opcode, file);
+            int const ecode = validate_access(file_path, th_opcode, file);
             if (ecode != 0) {
                 optack.clear();
                 if (suppress_error && *filename != '/' && ecode == ENOTFOUND) {
@@ -178,7 +177,7 @@ int tftp(const std::vector<char> &rxbuffer, FILE *&file, std::string &file_path,
         }
     }
 
-    size_t ack_length = ap - optack.data();
+    size_t const ack_length = ap - optack.data();
     if (argn == 2) {
         optack.clear();
         syslog(LOG_NOTICE, "tftpd: Request has no options");
