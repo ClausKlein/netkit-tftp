@@ -12,7 +12,7 @@ set(CMAKE_CXX_EXTENSIONS NO)
 # ===============================
 project(
     tftpd # ORIG: netkit-tftp v0.17.6
-    VERSION 1.0.0
+    VERSION 1.0.0.1
     LANGUAGES CXX
 )
 # ===============================
@@ -40,10 +40,10 @@ find_package(Threads REQUIRED)
 include(cmake/CPM.cmake)
 
 # PackageProject.cmake will be used to make our target installable
-CPMAddPackage("gh:TheLartians/PackageProject.cmake@1.10.0")
+CPMAddPackage("gh:TheLartians/PackageProject.cmake@1.11.0")
 
 # see https://github.com/aminya/project_options for more info
-CPMAddPackage("gh:aminya/project_options@0.26.1")
+CPMAddPackage("gh:aminya/project_options@0.32.1")
 # XXX list(APPEND CMAKE_MODULE_PATH ${project_options_SOURCE_DIR})
 
 add_library(
@@ -56,7 +56,9 @@ add_library(
     tftp_subs.cpp
     tftp/tftpsubs.h
 )
-target_link_libraries(${PROJECT_NAME} PUBLIC Boost::filesystem Boost::headers Threads::Threads)
+target_link_libraries(
+    ${PROJECT_NAME} PUBLIC Boost::filesystem Boost::headers Threads::Threads
+)
 target_compile_definitions(${PROJECT_NAME} PUBLIC BOOST_ASIO_NO_DEPRECATED)
 target_include_directories(
     ${PROJECT_NAME} PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
@@ -64,8 +66,6 @@ target_include_directories(
 )
 
 if(PROJECT_IS_TOP_LEVEL AND CMAKE_BUILD_TYPE STREQUAL "Debug")
-    set(CMAKE_SKIP_INSTALL_RULES TRUE)
-
     project_options(
         PREFIX
         ${PROJECT_NAME}
@@ -81,13 +81,12 @@ if(PROJECT_IS_TOP_LEVEL AND CMAKE_BUILD_TYPE STREQUAL "Debug")
         # ENABLE_INCLUDE_WHAT_YOU_USE
     )
 
-    if(CMAKE_SKIP_INSTALL_RULES)
-        # FIXME: should be PRIVATE! CK
-        target_link_libraries(
-            ${PROJECT_NAME} PUBLIC ${PROJECT_NAME}_project_warnings
-                                   ${PROJECT_NAME}_project_options
-        )
-    endif()
+    # FIXME: should be PRIVATE! CK
+    target_link_libraries(
+        ${PROJECT_NAME}
+        PUBLIC $<BUILD_INTERFACE:${PROJECT_NAME}_project_warnings>
+               $<BUILD_INTERFACE:${PROJECT_NAME}_project_options>
+    )
 else()
     include(cmake/WarningsAsErrors.cmake)
 endif()
