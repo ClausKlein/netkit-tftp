@@ -22,6 +22,7 @@
 # - Branch pipelines when a merge request is not open for the branch.
 # https://docs.gitlab.com/ee/ci/yaml/workflow.html#
 # switch-between-branch-pipelines-and-merge-request-pipelines
+---
 workflow:
   rules:
     - if: $CI_COMMIT_TAG
@@ -31,21 +32,39 @@ workflow:
     - if: $CI_COMMIT_BRANCH
 
 variables:
-  # GIT_CONFIG_PARAMETERS: 'url.git@code.rsint.net:mirror/github.com/.insteadOf=https://github.com/'
   PIP_INDEX_URL: "https://pypi.rsint.net/api/pypi/rs_pypi_virtual/simple"
+  # GIT_SUBMODULE_STRATEGY: normal
+  # GIT_SUBMODULE_DEPTH: 1
   # Required CPU's for execution in Kubernetes cluster
   KUBERNETES_CPU_LIMIT: 2
   CICD_BUILD_ARCH: x86_64
   CICD_USER: $SERVICE_USER
   CICD_PASSWORD: $SERVICE_USER_API_KEY
 
-
 default:
+<<<<<<< HEAD
   image: saas-linux-small-amd64
   tags: [linux]
   before_script: |
     export PATH="$HOME/.local/bin:$PATH"
     pip install -U -r requirements.txt
+=======
+  image: docker.rsint.net/rs_common/rs-ubuntu:22.04-buildessential-2023-07-02
+  tags: [linux-container]
+  before_script:
+    - echo -e "\e[0Ksection_start:`date +%s`:my_setup_linux[collapsed=true]\r\e[0KHeader of the setup linux collapsible section"
+    - export PATH="$HOME/.local/bin:$PATH"
+    - sudo ln -s /usr/share/zoneinfo/Europe/Berlin /etc/localtime
+    - sudo apt update
+    - sudo apt install --assume-yes clang-tidy python3-pip libboost-filesystem-dev
+    - python3 -m pip install -U -r requirements.txt
+    - echo -e "\e[0Ksection_end:`date +%s`:my_setup_linux\r\e[0K"
+    # - git config --global url.git@code.rsint.net:mirror/github.com/.insteadOf https://github.com/
+    - git config --global user.name "Claus Klein"
+    - git config --global user.email "claus.klein@rohde-schwarz.com"
+    - git config --global -l
+    - git clone https://github.com/aminya/project_options.git
+>>>>>>> 2d8f8eb (update git config settings for gitlab CI)
 
 .standard-rules:       # Make a hidden job to hold the common rules
   rules:
@@ -62,10 +81,9 @@ build-job:       # This job runs in the build stage, which runs first.
   extends:
     - .standard-rules  # Reuse the configuration in `.standard-rules` here
   script:
-    - echo "Compiling the code..."
-    - GIT_CONFIG_PARAMETERS=url.git@code.rsint.net:mirror/github.com/.insteadOf=https://github.com/ cmake --preset default
-    - cmake --build --preset default
-    - echo "Compile complete."
+    - echo "Build default workflow ..."
+    - cmake --workflow --preset default --fresh
+    - echo "Build workflow complete."
 
 unit-test-job:   # This job runs in the test stage.
   stage: test    # It only starts when the job in the build stage completes successfully.
@@ -73,6 +91,7 @@ unit-test-job:   # This job runs in the test stage.
     - .standard-rules  # Reuse the configuration in `.standard-rules` here
   script:
     - echo "Running unit tests... This will take about a view seconds."
+    - cmake --preset default --fresh
     - cmake --build --preset default --target test
     - gcovr .
 

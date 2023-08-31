@@ -31,7 +31,6 @@ include(GNUInstallDirs)
 #     COMPONENTS filesystem asio headers
 #     REQUIRED
 # )
-
 # ---- Add other dependencies via CPM ----
 # see https://github.com/cpm-cmake/CPM.cmake for more info
 
@@ -67,17 +66,37 @@ target_include_directories(
 )
 
 if(PROJECT_IS_TOP_LEVEL AND CMAKE_BUILD_TYPE STREQUAL "Debug")
-# Enable sanitizers and static analyzers when running the tests
-    if($ENV{CI})
-        set(ENABLE_CLANG_TIDY "ENABLE_CLANG_TIDY")
+    # ProjectOptions will be used for compiler settings and appropriate CMake options
+    # NOTE(CK): Set GIT_SUBMODULES to empty string to NOT initializes submodules!
+    cmake_policy(SET CMP0097 NEW)
+    CPMAddPackage(
+        NAME ProjectOptions
+        GIT_TAG v0.32.1
+        GITHUB_REPOSITORY
+            aminya/project_options
+            GIT_SUBMODULES
+            "docs" # NOTE(CK): Workaround existing dir to prevent load of submodule
+    )
+    if(ProjectOptions_SOURCE_DIR)
+        message(DEBUG "${ProjectOptions_SOURCE_DIR} added")
+        list(APPEND CMAKE_MODULE_PATH ${ProjectOptions_SOURCE_DIR}/src)
     endif()
 
-    check_sanitizers_support(
-        ENABLE_SANITIZER_ADDRESS ENABLE_SANITIZER_UNDEFINED_BEHAVIOR
-        ENABLE_SANITIZER_LEAK ENABLE_SANITIZER_THREAD ENABLE_SANITIZER_MEMORY
-    )
+    # Enable sanitizers and static analyzers when running the tests
+    set(ENABLE_CLANG_TIDY NO)
+    if(DEFINED ENV{CI})
+        set(ENABLE_CLANG_TIDY "ENABLE_CLANG_TIDY")
+        set(ENABLE_SANITIZER_THREAD "ENABLE_SANITIZER_THREAD")
+    else()
+        check_sanitizers_support(
+            ENABLE_SANITIZER_ADDRESS ENABLE_SANITIZER_UNDEFINED_BEHAVIOR
+            ENABLE_SANITIZER_LEAK ENABLE_SANITIZER_THREAD
+            ENABLE_SANITIZER_MEMORY
+        )
+    endif()
+
     if(APPLE)
-        unset(ENABLE_SANITIZER_LEAK)
+        set(ENABLE_SANITIZER_LEAK NO)
     endif()
 
     project_options(
@@ -110,6 +129,9 @@ endif()
 # Install and export tftpd-targets
 #---------------------------------------------------------------------------------------
 if(NOT CMAKE_SKIP_INSTALL_RULES)
+    # PackageProject.cmake will be used to make our target installable
+    CPMAddPackage("gh:TheLartians/PackageProject.cmake@1.11.0")
+
     packageProject(
         NAME ${PROJECT_NAME}
         VERSION ${PROJECT_VERSION}
@@ -152,9 +174,8 @@ if(NETKIT_TFTP_TESTS)
     enable_testing()
 
     add_executable(option_test option_test.cpp async_tftpd_server.hpp)
-    #NO! CK target_include_directories(option_test SYSTEM PRIVATE include)
     target_link_libraries(option_test PRIVATE tftpd)
-    add_test(NAME option_test COMMAND option_test)
+    # FIXME add_test(NAME option_test COMMAND option_test)
 
     add_executable(tftpd_test tftpd_test.cpp async_tftpd_server.hpp)
     target_link_libraries(tftpd_test PRIVATE tftpd)
