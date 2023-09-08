@@ -19,8 +19,9 @@
 default:
   image: saas-linux-small-amd64
   tags: [linux]
-  before_script:
-    - pip install -r requirements.txt
+  before_script: |
+    export PATH="$HOME/.local/bin:$PATH"
+    pip install -U -r requirements.txt
 
 .standard-rules:       # Make a hidden job to hold the common rules
   rules:
@@ -68,4 +69,4 @@ deploy-job:      # This job runs in the deploy stage.
   environment: production
   script:
     - echo "Deploying application..."
-    - echo "Application NOT deployed yet."
+    - echo "Application NOT yet deployed!"
