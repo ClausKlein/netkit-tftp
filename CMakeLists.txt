@@ -78,9 +78,8 @@ if(PROJECT_IS_TOP_LEVEL AND CMAKE_BUILD_TYPE STREQUAL "Debug")
     )
 
     target_link_libraries(
-        ${PROJECT_NAME}
-        PUBLIC $<BUILD_INTERFACE:${PROJECT_NAME}_project_warnings>
-               $<BUILD_INTERFACE:${PROJECT_NAME}_project_options>
+        ${PROJECT_NAME} PUBLIC $<BUILD_INTERFACE:${PROJECT_NAME}_project_warnings>
+                               $<BUILD_INTERFACE:${PROJECT_NAME}_project_options>
     )
 else()
     include(cmake/WarningsAsErrors.cmake)
@@ -104,17 +103,22 @@ if(NOT CMAKE_SKIP_INSTALL_RULES)
         DEPENDENCIES "boost 1.71"
     )
     # NOTE: implicit done! add_library(tftpd::tftpd ALIAS tftpd)
-    install(FILES async_tftpd_server.hpp
-            DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-    )
+    install(FILES async_tftpd_server.hpp DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
 
-    install(IMPORTED_RUNTIME_ARTIFACTS ${PROJECT_NAME} RUNTIME_DEPENDENCY_SET
+    if(BUILD_SHARED_LIBS)
+        install(IMPORTED_RUNTIME_ARTIFACTS ${PROJECT_NAME} RUNTIME_DEPENDENCY_SET
+                _dependency_set
+        )
+        install(
+            RUNTIME_DEPENDENCY_SET
             _dependency_set
-    )
-    install(RUNTIME_DEPENDENCY_SET _dependency_set
-            POST_EXCLUDE_REGEXES "${CMAKE_INSTALL_PREFIX}/lib"
-            RUNTIME DESTINATION lib
-    )
+            POST_EXCLUDE_REGEXES
+            "${CMAKE_INSTALL_PREFIX}/lib"
+            RUNTIME
+            DESTINATION
+            lib
+        )
+    endif()
 
     include(CPack)
 endif()
