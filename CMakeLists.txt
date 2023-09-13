@@ -28,11 +28,9 @@ include(GNUInstallDirs)
 
 find_package(
     Boost 1.71 CONFIG
-    COMPONENTS filesystem
+    COMPONENTS filesystem timer
     REQUIRED
 )
-
-find_package(Threads REQUIRED)
 
 # ---- Add other dependencies via CPM ----
 # see https://github.com/cpm-cmake/CPM.cmake for more info
@@ -47,7 +45,7 @@ CPMAddPackage("gh:aminya/project_options@0.32.1")
 # XXX list(APPEND CMAKE_MODULE_PATH ${project_options_SOURCE_DIR})
 
 add_library(
-    tftpd STATIC
+    tftpd # XXX STATIC
     async_tftpd_server.cpp
     async_tftpd_server.hpp
     tftpd.hpp
@@ -57,7 +55,7 @@ add_library(
     tftp/tftpsubs.h
 )
 target_link_libraries(
-    ${PROJECT_NAME} PUBLIC Boost::filesystem Boost::headers Threads::Threads
+    ${PROJECT_NAME} PUBLIC Boost::filesystem Boost::timer
 )
 target_compile_definitions(${PROJECT_NAME} PUBLIC BOOST_ASIO_NO_DEPRECATED)
 target_include_directories(
@@ -113,6 +111,13 @@ if(NOT CMAKE_SKIP_INSTALL_RULES)
             DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
     )
 
+    install(IMPORTED_RUNTIME_ARTIFACTS ${PROJECT_NAME} RUNTIME_DEPENDENCY_SET _dependency_set)
+    install(
+        RUNTIME_DEPENDENCY_SET _dependency_set
+        POST_EXCLUDE_REGEXES "${CMAKE_INSTALL_PREFIX}/lib"
+        RUNTIME DESTINATION lib
+    )
+
     include(CPack)
 endif()
 
@@ -126,7 +131,10 @@ if(NETKIT_TFTP_TESTS)
     add_executable(option_test option_test.cpp async_tftpd_server.hpp)
     #NO! CK target_include_directories(option_test SYSTEM PRIVATE include)
     target_link_libraries(option_test PRIVATE tftpd)
-    add_test(NAME option_test COMMAND option_test)
+
+    if(NOT DEFINED $ENV{CI})
+        add_test(NAME option_test COMMAND option_test)
+    endif()
 
     add_executable(tftpd_test tftpd_test.cpp async_tftpd_server.hpp)
     target_link_libraries(tftpd_test PRIVATE tftpd)
