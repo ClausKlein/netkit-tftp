@@ -1,6 +1,6 @@
 #!/bin/bash -uex
 
-# NOTE: not loger used: tftp-hpa 5.2
+# NOTE: not longer used: tftp-hpa 5.2
 # Usage: tftp [-4][-6][-v][-V][-l][-m mode][-w size][-B blocksize] [-R port:port] [host [port]] [-c command]
 #XXX TFTP="/usr/bin/tftp -v -4 127.0.0.1 1234 -m binary"
 
@@ -148,7 +148,7 @@ fi
 ##############################################
 # NOTE we start our an own client
 ##############################################
-# normal binary upload with dublicate ack's
+# normal binary upload with duplicate ack's
 # TODO: should not fail
 ## bin/tftpd_test 1234 &
 ## sleep 1
@@ -168,7 +168,7 @@ if test "${UNAME}" == "Linux"; then
     wait
 fi
 ##############################################
-echo "NOTE: absolut path upload must fail!"
+echo "NOTE: absolute path upload must fail!"
 dd if=bin/tftpd_test of=test32k.dat bs=1024 count=32
 bin/tftpd_test 1234 &
 sleep 1
@@ -194,7 +194,7 @@ sleep 1
 ${TFTP} --input=build.ninja --upload=./../build.ninja && exit 1
 wait
 
-# invalid absolut path upload must fail
+# invalid absolute path upload must fail
 bin/tftpd_test 1234 &
 sleep 1
 ${TFTP} --input=build.ninja --upload=//srv///tftp/build.ninja && exit 1

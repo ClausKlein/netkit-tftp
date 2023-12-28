@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.21...3.27)
+cmake_minimum_required(VERSION 3.21...3.28)
 
 # Not ideal to use this global variable, but necessary to make sure that tooling and projects use
 # the same version
@@ -39,10 +39,10 @@ include(cmake/CPM.cmake)
 
 option(BUILD_SHARED_LIBS "Build shared libraries" YES)
 set(BOOST_INCLUDE_LIBRARIES filesystem asio headers)
-CPMAddPackage("gh:ClausKlein/boost-cmake@1.81.0-rc2")
+CPMAddPackage("gh:ClausKlein/boost-cmake@1.81.0-rc3")
 
 # PackageProject.cmake will be used to make our target installable
-# CPMAddPackage("gh:TheLartians/PackageProject.cmake@1.11.0")
+# XXX done with boost-cmake! CPMAddPackage("gh:TheLartians/PackageProject.cmake@1.11.0")
 
 # see https://github.com/aminya/project_options for more info
 CPMAddPackage("gh:aminya/project_options@0.32.1")

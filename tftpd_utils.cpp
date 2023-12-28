@@ -89,7 +89,7 @@ constexpr bool suppress_error{false};
 // Change root directory on startup. This means the remote host does not need to pass along the directory as part of the
 // transfer, and may add security.
 constexpr bool secure_tftp{true};
-// Allow new files to be created. Normaly, tftpd will only allow upload of files that already exist.
+// Allow new files to be created. Normally, tftpd will only allow upload of files that already exist.
 constexpr bool allow_create{true};
 
 struct formats
