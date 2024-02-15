@@ -175,7 +175,10 @@ if(NETKIT_TFTP_TESTS)
 
     add_executable(option_test option_test.cpp async_tftpd_server.hpp)
     target_link_libraries(option_test PRIVATE tftpd)
-    # FIXME add_test(NAME option_test COMMAND option_test)
+
+    if(NOT DEFINED ENV{CI})
+        add_test(NAME option_test COMMAND option_test)
+    endif()
 
     add_executable(tftpd_test tftpd_test.cpp async_tftpd_server.hpp)
     target_link_libraries(tftpd_test PRIVATE tftpd)

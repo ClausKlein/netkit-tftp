@@ -38,21 +38,22 @@ jobs:
             "**/cpm_modules"
           key: ${{ github.workflow }}-cpm-modules-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake') }}
 
-      - uses: actions/setup-python@v4
-        with:
-          python-version: '3.11'
-          cache: 'pip' # caching pip dependencies
+      # - uses: actions/setup-python@v4
+      #   with:
+      #     python-version: '3.11'
+      #     cache: 'pip' # caching pip dependencies
+      #     # pip but doesn't exist on disk: /home/runner/.cache/pip
 
-      - run: |
-          sudo python -m pip install --upgrade pip
-          sudo pip install -r requirements.txt
+      - name: Setup python3
+        run: |
+          sudo python3 -m pip install --upgrade pip
+          sudo python3 -m pip install -U -r requirements.txt
+          # /root/.cache/pip/
 
       - name: Setup Cpp
         if: startsWith(matrix.os, 'ubuntu')
         uses: aminya/setup-cpp@v1
         with:
-          llvm: true
-          ccache: true
           clangtidy: true
           clangformat: true
 
@@ -69,7 +70,11 @@ jobs:
           sudo apt-get install libboost-filesystem-dev
 
       - name: Configure CMake
-        run: cmake -G Ninja -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{matrix.BUILD_TYPE}}
+        run: |
+          which cmake ninja
+          cmake --version
+          cmake --version
+          cmake -G Ninja -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{matrix.BUILD_TYPE}}
 
       - name: Build
         # Build your program with the given configuration

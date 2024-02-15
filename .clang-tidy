@@ -39,6 +39,6 @@ Checks:
 HeaderFilterRegex:
     '.*'
 
-#TODO: this isn't realy pedantic tody! CK
+#TODO: this isn't realy pedantic today! CK
 WarningsAsErrors:
     '*'

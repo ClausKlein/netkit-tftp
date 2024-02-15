@@ -42,29 +42,11 @@ variables:
   CICD_PASSWORD: $SERVICE_USER_API_KEY
 
 default:
-<<<<<<< HEAD
   image: saas-linux-small-amd64
   tags: [linux]
   before_script: |
     export PATH="$HOME/.local/bin:$PATH"
     pip install -U -r requirements.txt
-=======
-  image: docker.rsint.net/rs_common/rs-ubuntu:22.04-buildessential-2023-07-02
-  tags: [linux-container]
-  before_script:
-    - echo -e "\e[0Ksection_start:`date +%s`:my_setup_linux[collapsed=true]\r\e[0KHeader of the setup linux collapsible section"
-    - export PATH="$HOME/.local/bin:$PATH"
-    - sudo ln -s /usr/share/zoneinfo/Europe/Berlin /etc/localtime
-    - sudo apt update
-    - sudo apt install --assume-yes clang-tidy python3-pip libboost-filesystem-dev
-    - python3 -m pip install -U -r requirements.txt
-    - echo -e "\e[0Ksection_end:`date +%s`:my_setup_linux\r\e[0K"
-    # - git config --global url.git@code.rsint.net:mirror/github.com/.insteadOf https://github.com/
-    - git config --global user.name "Claus Klein"
-    - git config --global user.email "claus.klein@rohde-schwarz.com"
-    - git config --global -l
-    - git clone https://github.com/aminya/project_options.git
->>>>>>> 2d8f8eb (update git config settings for gitlab CI)
 
 .standard-rules:       # Make a hidden job to hold the common rules
   rules:
