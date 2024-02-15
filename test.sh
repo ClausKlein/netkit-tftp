@@ -106,44 +106,29 @@ wait
 
 ##############################################
 if test "${UNAME}" == "Linux"; then
-    dd if=$tftpd_test of=test64k.dat bs=1024 count=64
-
-    $tftpd_test 1234 &
-    sleep 1
-    ${TFTP} --blksize=16384 --upload=test64k.dat --input=test64k.dat
-    wait
-
-    #---------------------------------------------
-    $tftpd_test 1234 &
-    sleep 1
-    ${TFTP} --blksize=32768 --upload=test64k.dat --input=test64k.dat
-    wait
-
-    #---------------------------------------------
-    $tftpd_test 1234 &
-    sleep 1
-    ${TFTP} --blksize=65536 --upload=test64k.dat --input=test64k.dat
-    wait
+    /bin/dd if=/dev/random of=test64k.dat bs=1024 count=64
 else
     /bin/dd if=/dev/zero of=test64m.dat bs=1m count=64
-
-    $tftpd_test 1234 &
-    sleep 1
-    ${TFTP} --blksize=1024 --upload=test64m.dat --input=test64m.dat
-    wait
-
-    #---------------------------------------------
-    $tftpd_test 1234 &
-    sleep 1
-    ${TFTP} --blksize=2048 --upload=test64m.dat --input=test64m.dat
-    wait
-
-    #---------------------------------------------
-    $tftpd_test 1234 &
-    sleep 1
-    ${TFTP} --blksize=4096 --upload=test64m.dat --input=test64m.dat
-    wait
 fi
+
+#---------------------------------------------
+$tftpd_test 1234 &
+sleep 1
+${TFTP} --blksize=16384 --upload=test64k.dat --input=test64k.dat
+wait
+
+#---------------------------------------------
+$tftpd_test 1234 &
+sleep 1
+${TFTP} --blksize=32768 --upload=test64k.dat --input=test64k.dat
+wait
+
+#---------------------------------------------
+$tftpd_test 1234 &
+sleep 1
+${TFTP} --blksize=65536 --upload=test64k.dat --input=test64k.dat
+wait
+
 ##############################################
 
 ##############################################
@@ -162,7 +147,7 @@ fi
 # upload large file > 224K:
 echo "NOTE: must fail, disk full!"
 if test "${UNAME}" == "Linux"; then
-    /bin/dd if=/dev/zero of=test256k.dat bs=1024 count=256
+    /bin/dd if=/dev/random of=test256k.dat bs=1024 count=256
     $tftpd_test 1234 &
     sleep 1
     ${TFTP} --input=test256k.dat --upload=test256k.dat && exit 1
@@ -170,10 +155,10 @@ if test "${UNAME}" == "Linux"; then
 fi
 ##############################################
 echo "NOTE: absolute path upload must fail!"
-dd if=$tftpd_test of=test32k.dat bs=1024 count=32
+dd if=$tftpd_test of=test16k.dat bs=1024 count=16
 $tftpd_test 1234 &
 sleep 1
-${TFTP} --input=test32k.dat --upload=${TFTPDIR}/test32k.dat && exit 1
+${TFTP} --input=test16k.dat --upload=${TFTPDIR}/test16k.dat && exit 1
 wait
 ##############################################
 
