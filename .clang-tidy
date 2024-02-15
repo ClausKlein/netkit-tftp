@@ -6,8 +6,6 @@ Checks:
     boost-*,
     bugprone-*,
     cert-*,
-    -cert-env33-c,
-    -cert-err58-cpp,
     clang-analyzer-*,
     cppcoreguidelines-*,
     -cppcoreguidelines-avoid-*,
@@ -22,6 +20,7 @@ Checks:
     -hicpp-signed-bitwise,
     -hicpp-vararg,
     misc-*,
+    google-*,
     -misc-non-private-member-variables-in-classes,
     modernize-*,
     -modernize-macro-to-enum,
@@ -34,11 +33,12 @@ Checks:
     -readability-identifier-length,
     -*avoid-c-arrays,
     -*magic-numbers,
+    -bugprone-narrowing-conversions,-cppcoreguidelines-narrowing-conversions
 '
 
 HeaderFilterRegex:
     '.*'
 
-#TODO: this is not realy pedantic! CK
+#TODO: this isn't realy pedantic today! CK
 WarningsAsErrors:
-    'clang-diagnostic-error'
+    '*'

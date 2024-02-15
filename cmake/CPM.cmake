@@ -25,8 +25,28 @@ function(download_cpm)
     )
 endfunction()
 
+function(download_cpm_CI)
+    message(STATUS "Downloading CPM.cmake ON CI to ${CPM_DOWNLOAD_LOCATION}")
+    set(GITHUB_MIRROR "https://code.rsint.net/mirror/github.com")
+    file(
+        DOWNLOAD
+        ${GITHUB_MIRROR}/cpm-cmake/CPM.cmake/-/raw/v${CPM_DOWNLOAD_VERSION}/cmake/CPM.cmake
+        ${CPM_DOWNLOAD_LOCATION}
+    )
+    # Version number needs to be patched.
+    file(READ ${CPM_DOWNLOAD_LOCATION} FILE_CONTENT)
+    string(REPLACE "1.0.0-development-version" "${CPM_DOWNLOAD_VERSION}"
+                   FILE_CONTENT "${FILE_CONTENT}"
+    )
+    file(WRITE ${CPM_DOWNLOAD_LOCATION} "${FILE_CONTENT}")
+endfunction()
+
 if(NOT (EXISTS ${CPM_DOWNLOAD_LOCATION}))
-    download_cpm()
+    if(DEFINED ENV{CICD_USER})
+        download_cpm_ci()
+    else()
+        download_cpm()
+    endif()
 else()
     # resume download if it previously failed
     file(READ ${CPM_DOWNLOAD_LOCATION} check)

@@ -2,15 +2,19 @@
 name: CMake
 
 on:
-  push:
-    branches: ["develop"]
   pull_request:
-    branches: ["develop"]
+  merge_group:
+  push:
+    branches:
+      - 'master'
+      - 'releases/**'
 
 env:
   # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
-  BUILD_TYPE: Debug
+  # XXX BUILD_TYPE: Debug
   CTEST_OUTPUT_ON_FAILURE: 1
+  CMAKE_EXPORT_COMPILE_COMMANDS: 1
+  CCACHE_DIR: ${{ github.workspace }}/.ccache
   CPM_SOURCE_CACHE: ${{ github.workspace }}/cpm_modules
 
 jobs:
@@ -20,6 +24,7 @@ jobs:
 
       matrix:
         os: [macos, ubuntu]
+        BUILD_TYPE: [Debug, Release]
 
     runs-on: ${{ matrix.os }}-latest
 
@@ -28,46 +33,63 @@ jobs:
 
       - uses: actions/cache@v3
         with:
-          path: "**/cpm_modules"
+          path: |
+            "**/.ccache"
+            "**/cpm_modules"
           key: ${{ github.workflow }}-cpm-modules-${{ hashFiles('**/CMakeLists.txt', '**/*.cmake') }}
+
+      # - uses: actions/setup-python@v4
+      #   with:
+      #     python-version: '3.11'
+      #     cache: 'pip' # caching pip dependencies
+      #     # pip but doesn't exist on disk: /home/runner/.cache/pip
+
+      - name: Setup python3
+        run: |
+          sudo python3 -m pip install --upgrade pip
+          sudo python3 -m pip install -U -r requirements.txt
+          # /root/.cache/pip/
 
       - name: Setup Cpp
         if: startsWith(matrix.os, 'ubuntu')
         uses: aminya/setup-cpp@v1
         with:
-          cmake: true
-          ninja: true
-          gcovr: true
           clangtidy: true
+          clangformat: true
 
-      - name: Install boost filesystem libs and python3 tftpy module on macos
+      - name: Install boost libs and ccache on macos
         if: startsWith(matrix.os, 'macos')
         shell: bash
         run: |
-          sudo pip3 install tftpy gcovr
-          brew install boost ccache cmake ninja
+          brew install boost ccache
 
-      - name: Install boost tftpy module on ubuntu
+      - name: Install boost filesystem libs on ubuntu
         if: startsWith(matrix.os, 'ubuntu')
         shell: bash
         run: |
-          sudo pip3 install tftpy
-          sudo apt-get install libboost-filesystem-dev ccache
+          sudo apt-get install libboost-filesystem-dev
 
       - name: Configure CMake
-        # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
-        # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
-        run: cmake -G Ninja -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}
+        run: |
+          which cmake ninja
+          cmake --version
+          cmake --version
+          cmake -G Ninja -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{matrix.BUILD_TYPE}}
 
       - name: Build
         # Build your program with the given configuration
-        run: cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}}
+        run: cmake --build ${{github.workspace}}/build --config ${{matrix.BUILD_TYPE}}
 
       - name: Test
         working-directory: ${{github.workspace}}/build
         # Execute tests defined by the CMake configuration.
-        # See https://cmake.org/cmake/help/latest/manual/ctest.1.html for more detail
-        run: sudo ctest -C ${{env.BUILD_TYPE}} --verbose
+        run: sudo ctest -C ${{matrix.BUILD_TYPE}}
 
       - name: TestCoverage
+        if: startsWith(matrix.BUILD_TYPE, 'Debug')
         run: gcovr -e option_test.cpp -e tftpd_test.cpp .
+
+      - name: Install
+        if: startsWith(matrix.BUILD_TYPE, 'Rel')
+        working-directory: ${{github.workspace}}/build
+        run: cpack -C ${{matrix.BUILD_TYPE}}
