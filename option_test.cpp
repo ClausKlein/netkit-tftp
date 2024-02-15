@@ -41,7 +41,7 @@ int main()
                              "tsize\0"s
                              "12345678910\0"s};
         std::vector<char> msg(test1.begin(), test1.end());
-        msg.resize(PKTSIZE);
+        // TODO(CK): why? msg.resize(PKTSIZE);
         err = tftpd::tftp(msg, fp, path, ackbuf);
         std::cout << path << " segsize:" << tftpd::g_segsize << " tsize:" << tftpd::g_tsize
                   << " timeout: " << tftpd::g_timeout << std::endl;

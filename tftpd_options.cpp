@@ -171,7 +171,7 @@ static bool set_tsize(uintmax_t *vp)
     }
 
     if (sz == 0) {
-        sz = g_tsize; // only usefull for RRQ
+        sz = g_tsize; // only useful for RRQ
     } else {
         g_tsize = sz; // in case of WRQ
     }

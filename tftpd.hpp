@@ -358,7 +358,7 @@ public:
         } while (false);
 
         // ===============================
-        // write the current data segement
+        // write the current data segment
         // ===============================
         size_t const seg_length = rxlen - TFTP_HEADER;
         ssize_t written = writeit(file_guard_.get(), &dp_, seg_length, false);

@@ -49,6 +49,7 @@ char copyright[] = "@(#) Copyright (c) 1983 Regents of the University of Califor
 #include <boost/algorithm/string/case_conv.hpp>
 #include <boost/algorithm/string/predicate.hpp>
 #include <boost/current_function.hpp>
+#include <boost/filesystem.hpp>
 
 #include <arpa/inet.h>
 #include <cstdlib>
@@ -57,8 +58,16 @@ char copyright[] = "@(#) Copyright (c) 1983 Regents of the University of Califor
 #include <string>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <syslog.h>
 #include <vector>
+
+#ifdef __APPLE__
+#    define syslog fprintf
+#    define LOG_NOTICE stdout
+#    define LOG_WARNING stdout
+#    define LOG_ERR stderr
+#else
+#    include <syslog.h>
+#endif
 
 namespace tftpd {
 extern const char *g_rootdir; // the only tftp root dir used!
@@ -80,7 +89,7 @@ constexpr bool suppress_error{false};
 // Change root directory on startup. This means the remote host does not need to pass along the directory as part of the
 // transfer, and may add security.
 constexpr bool secure_tftp{true};
-// Allow new files to be created. Normaly, tftpd will only allow upload of files that already exist.
+// Allow new files to be created. Normally, tftpd will only allow upload of files that already exist.
 constexpr bool allow_create{true};
 
 struct formats
@@ -100,8 +109,17 @@ static struct formats formats[] = { // XXX {"netascii", /* validate_access, send
  */
 int tftp(const std::vector<char> &rxbuffer, FILE *&file, std::string &file_path, std::vector<char> &optack)
 {
+    // see too async_tftpd_server.cpp
+    boost::filesystem::path const dir(*dirs);
+    (void)boost::filesystem::create_directory(dir);
+
+#ifndef __APPLE__
+    openlog("ftpd", LOG_PID | LOG_NDELAY, LOG_FTP);
+#endif
+
     syslog(LOG_NOTICE, "%s(%lu)\n", BOOST_CURRENT_FUNCTION, rxbuffer.size());
     init_opt();
+    file = nullptr;
 
     assert(rxbuffer.size() >= TFTP_HEADER);
 

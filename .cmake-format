@@ -1,6 +1,6 @@
 format:
   tab_size: 4
-  line_width: 80
+  line_width: 97
   dangle_parens: true
 
 markup:

@@ -1,8 +1,8 @@
-cmake_minimum_required(VERSION 3.21...3.27)
+cmake_minimum_required(VERSION 3.21...3.28)
 
 # Not ideal to use this global variable, but necessary to make sure that tooling and projects use
 # the same version
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 17)
 
 # strongly encouraged to enable this globally to avoid conflicts between -Wpedantic being enabled
 # and -std=c++20 and -std=gnu++20 for example when compiling with PCH enabled
@@ -26,28 +26,30 @@ include(GNUInstallDirs)
 # search required packages and libs
 #---------------------------------------------------------------------------------------
 
-find_package(
-    Boost 1.71 CONFIG
-    COMPONENTS filesystem
-    REQUIRED
-)
-
-find_package(Threads REQUIRED)
+# find_package(
+#     Boost 1.81 CONFIG
+#     COMPONENTS filesystem asio headers
+#     REQUIRED
+# )
 
 # ---- Add other dependencies via CPM ----
 # see https://github.com/cpm-cmake/CPM.cmake for more info
 
 include(cmake/CPM.cmake)
 
+option(BUILD_SHARED_LIBS "Build shared libraries" YES)
+set(BOOST_INCLUDE_LIBRARIES filesystem asio headers)
+CPMAddPackage("gh:ClausKlein/boost-cmake@1.81.0-rc3")
+
 # PackageProject.cmake will be used to make our target installable
-CPMAddPackage("gh:TheLartians/PackageProject.cmake@1.11.0")
+# XXX done with boost-cmake! CPMAddPackage("gh:TheLartians/PackageProject.cmake@1.11.0")
 
 # see https://github.com/aminya/project_options for more info
 CPMAddPackage("gh:aminya/project_options@0.32.1")
 # XXX list(APPEND CMAKE_MODULE_PATH ${project_options_SOURCE_DIR})
 
 add_library(
-    tftpd STATIC
+    tftpd # FIXME(CK) STATIC
     async_tftpd_server.cpp
     async_tftpd_server.hpp
     tftpd.hpp
@@ -56,9 +58,8 @@ add_library(
     tftp_subs.cpp
     tftp/tftpsubs.h
 )
-target_link_libraries(
-    ${PROJECT_NAME} PUBLIC Boost::filesystem Boost::headers Threads::Threads
-)
+list(TRANSFORM BOOST_INCLUDE_LIBRARIES PREPEND Boost:: OUTPUT_VARIABLE BOOST_TARGETS)
+target_link_libraries(${PROJECT_NAME} PUBLIC ${BOOST_TARGETS})
 target_compile_definitions(${PROJECT_NAME} PUBLIC BOOST_ASIO_NO_DEPRECATED)
 target_include_directories(
     ${PROJECT_NAME} PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
@@ -81,11 +82,9 @@ if(PROJECT_IS_TOP_LEVEL AND CMAKE_BUILD_TYPE STREQUAL "Debug")
         # ENABLE_INCLUDE_WHAT_YOU_USE
     )
 
-    # FIXME: should be PRIVATE! CK
     target_link_libraries(
-        ${PROJECT_NAME}
-        PUBLIC $<BUILD_INTERFACE:${PROJECT_NAME}_project_warnings>
-               $<BUILD_INTERFACE:${PROJECT_NAME}_project_options>
+        ${PROJECT_NAME} PUBLIC $<BUILD_INTERFACE:${PROJECT_NAME}_project_warnings>
+                               $<BUILD_INTERFACE:${PROJECT_NAME}_project_options>
     )
 else()
     include(cmake/WarningsAsErrors.cmake)
@@ -106,12 +105,25 @@ if(NOT CMAKE_SKIP_INSTALL_RULES)
         # EXPORT_HEADER ${EXPORT_HEADER_LOCATION}
         COMPATIBILITY SameMajorVersion
         DISABLE_VERSION_SUFFIX YES
-        DEPENDENCIES "boost 1.71"
+        DEPENDENCIES "Boost 1.81"
     )
     # NOTE: implicit done! add_library(tftpd::tftpd ALIAS tftpd)
-    install(FILES async_tftpd_server.hpp
-            DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-    )
+    install(FILES async_tftpd_server.hpp DESTINATION ${CMAKE_INSTALL_INCLUDEDIR})
+
+    if(BUILD_SHARED_LIBS)
+        install(IMPORTED_RUNTIME_ARTIFACTS ${PROJECT_NAME} RUNTIME_DEPENDENCY_SET
+                _dependency_set
+        )
+        install(
+            RUNTIME_DEPENDENCY_SET
+            _dependency_set
+            POST_EXCLUDE_REGEXES
+            "${CMAKE_INSTALL_PREFIX}/lib"
+            RUNTIME
+            DESTINATION
+            lib
+        )
+    endif()
 
     include(CPack)
 endif()
