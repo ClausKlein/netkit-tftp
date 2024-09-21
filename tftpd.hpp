@@ -327,8 +327,9 @@ public:
             if (dp_->th_opcode == DATA) {
                 // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
                 if (dp_->th_block == block) {
-                    if (g_tsize != 0) { // NOTE: prevent division by zero! CK
-                        size_t const percent = 100UL * (block * g_segsize) / g_tsize;
+                    if (g_tsize != 0 && g_segsize != 0) { // NOTE: prevent division by zero! CK
+                        auto totalBlocks = g_tsize / g_segsize + ((g_tsize % g_segsize) > 0 ? 1 : 0);
+                        size_t const percent = (100UL * block) / totalBlocks;
                         if (percent != percent_) {
                             syslog(LOG_NOTICE, "tftpd: Progress: %lu%% received\n", percent);
                             percent_ = percent;
