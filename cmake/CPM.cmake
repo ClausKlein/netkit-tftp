@@ -1,58 +1,24 @@
-set(CPM_DOWNLOAD_VERSION 0.38.7)
+# SPDX-License-Identifier: MIT
+#
+# SPDX-FileCopyrightText: Copyright (c) 2019-2023 Lars Melchior and contributors
+
+set(CPM_DOWNLOAD_VERSION 0.40.5)
+set(CPM_HASH_SUM "c46b876ae3b9f994b4f05a4c15553e0485636862064f1fcc9d8b4f832086bc5d")
 
 if(CPM_SOURCE_CACHE)
-    set(_CPM_DOWNLOAD_LOCATION "${CPM_SOURCE_CACHE}/cpm/CPM_${CPM_DOWNLOAD_VERSION}.cmake")
+    set(CPM_DOWNLOAD_LOCATION "${CPM_SOURCE_CACHE}/cpm/CPM_${CPM_DOWNLOAD_VERSION}.cmake")
 elseif(DEFINED ENV{CPM_SOURCE_CACHE})
-    set(_CPM_DOWNLOAD_LOCATION "$ENV{CPM_SOURCE_CACHE}/cpm/CPM_${CPM_DOWNLOAD_VERSION}.cmake")
+    set(CPM_DOWNLOAD_LOCATION "$ENV{CPM_SOURCE_CACHE}/cpm/CPM_${CPM_DOWNLOAD_VERSION}.cmake")
 else()
-    set(_CPM_DOWNLOAD_LOCATION "${CMAKE_BINARY_DIR}/cmake/CPM_${CPM_DOWNLOAD_VERSION}.cmake")
+    set(CPM_DOWNLOAD_LOCATION "${CMAKE_BINARY_DIR}/cmake/CPM_${CPM_DOWNLOAD_VERSION}.cmake")
 endif()
-
-set(CPM_DOWNLOAD_LOCATION
-    "${_CPM_DOWNLOAD_LOCATION}"
-    CACHE STRING "Full path to CPM.cmake file"
-)
 
 # Expand relative path. This is important if the provided path contains a tilde (~)
 get_filename_component(CPM_DOWNLOAD_LOCATION ${CPM_DOWNLOAD_LOCATION} ABSOLUTE)
 
-function(download_cpm)
-    message(STATUS "Downloading CPM.cmake to ${CPM_DOWNLOAD_LOCATION}")
-    file(
-        DOWNLOAD
-        https://github.com/cpm-cmake/CPM.cmake/releases/download/v${CPM_DOWNLOAD_VERSION}/CPM.cmake
-        ${CPM_DOWNLOAD_LOCATION}
-    )
-endfunction()
-
-function(download_cpm_CI)
-    message(STATUS "Downloading CPM.cmake ON CI to ${CPM_DOWNLOAD_LOCATION}")
-    set(GITHUB_MIRROR "https://code.rsint.net/mirror/github.com")
-    file(
-        DOWNLOAD
-        ${GITHUB_MIRROR}/cpm-cmake/CPM.cmake/-/raw/v${CPM_DOWNLOAD_VERSION}/cmake/CPM.cmake
-        ${CPM_DOWNLOAD_LOCATION}
-    )
-    # Version number needs to be patched.
-    file(READ ${CPM_DOWNLOAD_LOCATION} FILE_CONTENT)
-    string(REPLACE "1.0.0-development-version" "${CPM_DOWNLOAD_VERSION}"
-                   FILE_CONTENT "${FILE_CONTENT}"
-    )
-    file(WRITE ${CPM_DOWNLOAD_LOCATION} "${FILE_CONTENT}")
-endfunction()
-
-if(NOT (EXISTS ${CPM_DOWNLOAD_LOCATION}))
-    if(DEFINED ENV{CICD_USER})
-        download_cpm_ci()
-    else()
-        download_cpm()
-    endif()
-else()
-    # resume download if it previously failed
-    file(READ ${CPM_DOWNLOAD_LOCATION} check)
-    if("${check}" STREQUAL "")
-        download_cpm()
-    endif()
-endif()
+file(DOWNLOAD
+     https://github.com/cpm-cmake/CPM.cmake/releases/download/v${CPM_DOWNLOAD_VERSION}/CPM.cmake
+     ${CPM_DOWNLOAD_LOCATION} EXPECTED_HASH SHA256=${CPM_HASH_SUM}
+)
 
 include(${CPM_DOWNLOAD_LOCATION})

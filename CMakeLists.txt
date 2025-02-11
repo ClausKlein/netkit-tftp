@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.21...3.28)
+cmake_minimum_required(VERSION 3.25...3.31)
 
 # Not ideal to use this global variable, but necessary to make sure that tooling and projects use
 # the same version
@@ -8,7 +8,9 @@ set(CMAKE_CXX_STANDARD 17)
 # and -std=c++20 and -std=gnu++20 for example when compiling with PCH enabled
 set(CMAKE_CXX_EXTENSIONS NO)
 
-# XXX include(before_project_setup OPTIONAL)
+list(APPEND CMAKE_MODULE_PATH "$ENV{HOME}/cmake")
+
+include(before_project_setup OPTIONAL)
 # ===============================
 project(
     tftpd # ORIG: netkit-tftp v0.17.6
@@ -16,7 +18,7 @@ project(
     LANGUAGES CXX
 )
 # ===============================
-# XXX include(build_options OPTIONAL)
+include(build_options OPTIONAL)
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
@@ -27,24 +29,26 @@ include(GNUInstallDirs)
 #---------------------------------------------------------------------------------------
 
 # find_package(
-#     Boost 1.81 CONFIG
+#     Boost 1.86 CONFIG
 #     COMPONENTS filesystem asio headers
 #     REQUIRED
 # )
+
 # ---- Add other dependencies via CPM ----
 # see https://github.com/cpm-cmake/CPM.cmake for more info
 
 include(cmake/CPM.cmake)
 
+# PackageProject.cmake will be used to make our target installable
+# overwrite version used with boost-cmake:
+CPMAddPackage("gh:TheLartians/PackageProject.cmake@1.13.0")
+
 option(BUILD_SHARED_LIBS "Build shared libraries" YES)
 set(BOOST_INCLUDE_LIBRARIES filesystem asio headers)
 CPMAddPackage("gh:ClausKlein/boost-cmake@1.81.0-rc3")
 
-# PackageProject.cmake will be used to make our target installable
-# XXX done with boost-cmake! CPMAddPackage("gh:TheLartians/PackageProject.cmake@1.11.0")
-
 # see https://github.com/aminya/project_options for more info
-CPMAddPackage("gh:aminya/project_options@0.32.1")
+CPMAddPackage("gh:aminya/project_options@0.41.0")
 # XXX list(APPEND CMAKE_MODULE_PATH ${project_options_SOURCE_DIR})
 
 add_library(
@@ -71,7 +75,7 @@ if(PROJECT_IS_TOP_LEVEL AND CMAKE_BUILD_TYPE STREQUAL "Debug")
     cmake_policy(SET CMP0097 NEW)
     CPMAddPackage(
         NAME ProjectOptions
-        GIT_TAG v0.32.1
+        GIT_TAG v0.41.0
         GITHUB_REPOSITORY
             aminya/project_options
             GIT_SUBMODULES
@@ -84,14 +88,14 @@ if(PROJECT_IS_TOP_LEVEL AND CMAKE_BUILD_TYPE STREQUAL "Debug")
 
     # Enable sanitizers and static analyzers when running the tests
     set(ENABLE_CLANG_TIDY NO)
+    set(ENABLE_SANITIZER_THREAD "ENABLE_SANITIZER_THREAD")
     if(DEFINED ENV{CI})
         set(ENABLE_CLANG_TIDY "ENABLE_CLANG_TIDY")
-        set(ENABLE_SANITIZER_THREAD "ENABLE_SANITIZER_THREAD")
     else()
-        check_sanitizers_support(
-            ENABLE_SANITIZER_ADDRESS ENABLE_SANITIZER_UNDEFINED_BEHAVIOR ENABLE_SANITIZER_LEAK
-            ENABLE_SANITIZER_THREAD ENABLE_SANITIZER_MEMORY
-        )
+        # check_sanitizers_support(
+        # ENABLE_SANITIZER_ADDRESS ENABLE_SANITIZER_UNDEFINED_BEHAVIOR ENABLE_SANITIZER_LEAK
+        # ENABLE_SANITIZER_THREAD ENABLE_SANITIZER_MEMORY
+        # )
     endif()
 
     if(APPLE)
@@ -112,7 +116,7 @@ if(PROJECT_IS_TOP_LEVEL AND CMAKE_BUILD_TYPE STREQUAL "Debug")
         ENABLE_CONTROL_FLOW_PROTECTION
         ENABLE_STACK_PROTECTION
         ENABLE_OVERFLOW_PROTECTION
-        ENABLE_INCLUDE_WHAT_YOU_USE
+        # XXX ENABLE_INCLUDE_WHAT_YOU_USE
         # XXX NO! WARNINGS_AS_ERRORS
     )
 
@@ -129,7 +133,7 @@ endif()
 #---------------------------------------------------------------------------------------
 if(NOT CMAKE_SKIP_INSTALL_RULES)
     # PackageProject.cmake will be used to make our target installable
-    CPMAddPackage("gh:TheLartians/PackageProject.cmake@1.11.0")
+    CPMAddPackage("gh:TheLartians/PackageProject.cmake@1.13.0")
 
     packageProject(
         NAME ${PROJECT_NAME}

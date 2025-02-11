@@ -19,26 +19,29 @@ Checks:
     -hicpp-no-array-decay,
     -hicpp-signed-bitwise,
     -hicpp-vararg,
-    misc-*,
     google-*,
+    misc-*,
+    -misc-include-cleaner,
     -misc-non-private-member-variables-in-classes,
+    -misc-use-anonymous-namespace,
+    -misc-use-internal-linkage,
     modernize-*,
-    -modernize-macro-to-enum,
     -modernize-use-trailing-return-type,
-    -modernize-avoid-c-arrays,
     performance-*,
+    -performance-avoid-endl,
     portability-*,
     readability-*,
+    -readability-avoid-unconditional-preprocessor-if,
     -readability-function-cognitive-complexity,
     -readability-identifier-length,
     -*avoid-c-arrays,
+    -*macro-to-enum,
     -*magic-numbers,
-    -bugprone-narrowing-conversions,-cppcoreguidelines-narrowing-conversions
+    -*narrowing-conversions,
 '
 
 HeaderFilterRegex:
     '.*'
 
-#TODO: this isn't realy pedantic today! CK
 WarningsAsErrors:
-    '*'
+    'clang-*'

@@ -73,7 +73,7 @@ jobs:
         run: |
           which cmake ninja
           cmake --version
-          cmake --version
+          ninja --version
           cmake -G Ninja -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{matrix.BUILD_TYPE}}
 
       - name: Build
