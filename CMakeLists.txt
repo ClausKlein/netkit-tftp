@@ -28,24 +28,19 @@ include(GNUInstallDirs)
 # search required packages and libs
 #---------------------------------------------------------------------------------------
 
-# find_package(
-#     Boost 1.86 CONFIG
-#     COMPONENTS filesystem asio headers
-#     REQUIRED
-# )
+set(BOOST_INCLUDE_LIBRARIES filesystem headers)
+find_package(
+    Boost 1.81 CONFIG
+    COMPONENTS filesystem headers
+    REQUIRED
+)
 
 # ---- Add other dependencies via CPM ----
 # see https://github.com/cpm-cmake/CPM.cmake for more info
 
 include(cmake/CPM.cmake)
 
-# PackageProject.cmake will be used to make our target installable
-# overwrite version used with boost-cmake:
-CPMAddPackage("gh:TheLartians/PackageProject.cmake@1.13.0")
-
 option(BUILD_SHARED_LIBS "Build shared libraries" YES)
-set(BOOST_INCLUDE_LIBRARIES filesystem asio headers)
-CPMAddPackage("gh:ClausKlein/boost-cmake@1.81.0-rc3")
 
 # see https://github.com/aminya/project_options for more info
 CPMAddPackage("gh:aminya/project_options@0.41.0")

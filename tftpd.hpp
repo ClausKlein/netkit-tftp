@@ -18,6 +18,7 @@
  */
 #include "tftp/tftpsubs.h"
 
+// XXX #include <boost/asio.hpp>
 #include <boost/asio/ts/buffer.hpp>
 #include <boost/asio/ts/internet.hpp>
 #include <boost/current_function.hpp>
