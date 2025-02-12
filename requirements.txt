@@ -11,4 +11,4 @@ cmake>=3.28
 gcovr>=8.3
 ninja>=1.11
 tftpy>=0.8.3
-wheel>=0.40.0
+wheel>=0.45.0
