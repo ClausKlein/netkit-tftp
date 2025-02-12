@@ -7,8 +7,8 @@
 builddriver==0.9.0
 bumpversion>=0.6.0
 cmake-format>=0.6.13
-cmake>=3.27
-gcovr>=6.0
+cmake>=3.28
+gcovr>=8.3
 ninja>=1.11
-tftpy>=0.8.2
+tftpy>=0.8.3
 wheel>=0.40.0
