@@ -57,7 +57,7 @@ static constexpr bool tsize_ok{true}; // only octet mode supported!
 
 uintmax_t g_timeout = MS_1K; // NOTE: 1 s as ms! CK
 uintmax_t g_segsize{default_blksize};
-off_t g_tsize{0};
+uintmax_t g_tsize{0};
 
 static bool set_blksize(uintmax_t *vp);
 static bool set_blksize2(uintmax_t *vp);
@@ -103,7 +103,7 @@ static bool set_blksize(uintmax_t *vp)
         sz = max_blksize;
     }
 
-    *vp = g_segsize = sz;
+    *vp = g_segsize = sz; // TODO(CK): const cast away
     blksize_set = true;
     return true;
 }
@@ -137,7 +137,7 @@ static bool set_blksize2(uintmax_t *vp)
         }
     }
 
-    *vp = g_segsize = sz;
+    *vp = g_segsize = sz; // TODO(CK): const cast away
     blksize_set = true;
     return true;
 }
@@ -176,7 +176,7 @@ static bool set_tsize(uintmax_t *vp)
         g_tsize = sz; // in case of WRQ
     }
 
-    *vp = sz;
+    *vp = sz; // TODO(CK): const cast away
     return true;
 }
 
@@ -185,7 +185,7 @@ static bool set_tsize(uintmax_t *vp)
  * to be the (default) retransmission timeout, but being an
  * integer in seconds it seems a bit limited.
  */
-static bool set_timeout(uintmax_t *vp)
+static bool set_timeout(uintmax_t *vp) // NOLINT(readability-non-const-parameter)
 {
     uintmax_t const to = *vp;
 
@@ -201,7 +201,7 @@ static bool set_timeout(uintmax_t *vp)
 /*
  * Similar, but in microseconds.  We allow down to 10 ms.
  */
-static bool set_utimeout(uintmax_t *vp)
+static bool set_utimeout(uintmax_t *vp) // NOLINT(readability-non-const-parameter)
 {
     uintmax_t const to = *vp;
 
@@ -258,7 +258,7 @@ void do_opt(const char *opt, const char *val, char **ackbuf_ptr)
 
     errno = 0;
     char *vend = nullptr;
-    uintmax_t v = strtoumax(val, &vend, 10); // TODO: or std::strtoul! CK
+    uintmax_t v = strtoumax(val, &vend, 10); // TODO(CK): or std::strtoul!
     if (*vend != 0 || errno == ERANGE) {
         // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg)
         syslog(LOG_ERR, "tftpd: Invallid option value (%s:%s)\n", opt, val);

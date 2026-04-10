@@ -18,6 +18,7 @@
  */
 #include "tftp/tftpsubs.h"
 
+// XXX #include <boost/asio.hpp>
 #include <boost/asio/ts/buffer.hpp>
 #include <boost/asio/ts/internet.hpp>
 #include <boost/current_function.hpp>
@@ -208,7 +209,7 @@ protected:
         socket_.async_send_to(boost::asio::buffer(txdata), senderEndpoint_,
                               [this](std::error_code /*ec*/, std::size_t /*bytes_sent*/) {
                                   // XXX if (ec) { syslog(LOG_ERR, "do_send_error: %s\n", ec.message().c_str()); }
-                                  // TODO: now we have no timer running, the run loop terminates
+                                  // TODO(CK): now we have no timer running, the run loop terminates
                                   timer_.cancel();
                                   throw std::system_error(std::make_error_code(std::errc::operation_canceled));
                               });

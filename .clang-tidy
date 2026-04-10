@@ -6,8 +6,6 @@ Checks:
     boost-*,
     bugprone-*,
     cert-*,
-    -cert-env33-c,
-    -cert-err58-cpp,
     clang-analyzer-*,
     cppcoreguidelines-*,
     -cppcoreguidelines-avoid-*,
@@ -21,24 +19,29 @@ Checks:
     -hicpp-no-array-decay,
     -hicpp-signed-bitwise,
     -hicpp-vararg,
+    google-*,
     misc-*,
+    -misc-include-cleaner,
     -misc-non-private-member-variables-in-classes,
+    -misc-use-anonymous-namespace,
+    -misc-use-internal-linkage,
     modernize-*,
-    -modernize-macro-to-enum,
     -modernize-use-trailing-return-type,
-    -modernize-avoid-c-arrays,
     performance-*,
+    -performance-avoid-endl,
     portability-*,
     readability-*,
+    -readability-avoid-unconditional-preprocessor-if,
     -readability-function-cognitive-complexity,
     -readability-identifier-length,
     -*avoid-c-arrays,
+    -*macro-to-enum,
     -*magic-numbers,
+    -*narrowing-conversions,
 '
 
 HeaderFilterRegex:
     '.*'
 
-#TODO: this is not realy pedantic! CK
 WarningsAsErrors:
-    'clang-diagnostic-error'
+    'clang-*'

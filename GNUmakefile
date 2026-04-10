@@ -22,8 +22,8 @@ PROJECT_NAME:=$(shell basename $${PWD})
 # prevent hard config of find_package(asio 1.14.1 CONFIG CMAKE_FIND_ROOT_PATH_BOTH)
 ifeq (NO${CROSS_COMPILE},NO)
     ifeq (${UNAME},Darwin)
-        #TODO CC:=/usr/local/opt/llvm/bin/clang
-        #TODO CXX:=/usr/local/opt/llvm/bin/clang++
+        CC:=/usr/bin/gcc
+        CXX:=/usr/bin/g++
         BOOST_ROOT:=/usr/local/opt/boost
         export BOOST_ROOT
     endif
@@ -44,7 +44,7 @@ endif
 #NO!    BUILD_TYPE=Coverage make lcov
 BUILD_TYPE?=Debug
 BUILD_TYPE?=Release
-# GENERATOR:=Xcode
+GENERATOR:=Xcode
 GENERATOR?=Ninja
 
 # end of config part

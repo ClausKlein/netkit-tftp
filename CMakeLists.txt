@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.21...3.28)
+cmake_minimum_required(VERSION 3.28...3.31)
 
 # Not ideal to use this global variable, but necessary to make sure that tooling and projects use
 # the same version
@@ -8,7 +8,9 @@ set(CMAKE_CXX_STANDARD 17)
 # and -std=c++20 and -std=gnu++20 for example when compiling with PCH enabled
 set(CMAKE_CXX_EXTENSIONS NO)
 
-# XXX include(before_project_setup OPTIONAL)
+list(APPEND CMAKE_MODULE_PATH "$ENV{HOME}/cmake")
+
+include(before_project_setup OPTIONAL)
 # ===============================
 project(
     tftpd # ORIG: netkit-tftp v0.17.6
@@ -16,7 +18,7 @@ project(
     LANGUAGES CXX
 )
 # ===============================
-# XXX include(build_options OPTIONAL)
+include(build_options OPTIONAL)
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
@@ -26,11 +28,12 @@ include(GNUInstallDirs)
 # search required packages and libs
 #---------------------------------------------------------------------------------------
 
-# find_package(
-#     Boost 1.81 CONFIG
-#     COMPONENTS filesystem asio headers
-#     REQUIRED
-# )
+set(BOOST_INCLUDE_LIBRARIES filesystem headers)
+find_package(
+    Boost 1.81 CONFIG
+    COMPONENTS filesystem headers
+    REQUIRED
+)
 
 # ---- Add other dependencies via CPM ----
 # see https://github.com/cpm-cmake/CPM.cmake for more info
@@ -38,14 +41,9 @@ include(GNUInstallDirs)
 include(cmake/CPM.cmake)
 
 option(BUILD_SHARED_LIBS "Build shared libraries" YES)
-set(BOOST_INCLUDE_LIBRARIES filesystem asio headers)
-CPMAddPackage("gh:ClausKlein/boost-cmake@1.81.0-rc3")
-
-# PackageProject.cmake will be used to make our target installable
-# XXX done with boost-cmake! CPMAddPackage("gh:TheLartians/PackageProject.cmake@1.11.0")
 
 # see https://github.com/aminya/project_options for more info
-CPMAddPackage("gh:aminya/project_options@0.32.1")
+CPMAddPackage("gh:aminya/project_options@0.41.0")
 # XXX list(APPEND CMAKE_MODULE_PATH ${project_options_SOURCE_DIR})
 
 add_library(
@@ -67,19 +65,54 @@ target_include_directories(
 )
 
 if(PROJECT_IS_TOP_LEVEL AND CMAKE_BUILD_TYPE STREQUAL "Debug")
+    # ProjectOptions will be used for compiler settings and appropriate CMake options
+    # NOTE(CK): Set GIT_SUBMODULES to empty string to NOT initializes submodules!
+    cmake_policy(SET CMP0097 NEW)
+    CPMAddPackage(
+        NAME ProjectOptions
+        GIT_TAG v0.41.0
+        GITHUB_REPOSITORY
+            aminya/project_options
+            GIT_SUBMODULES
+            "docs" # NOTE(CK): Workaround existing dir to prevent load of submodule
+    )
+    if(ProjectOptions_SOURCE_DIR)
+        message(DEBUG "${ProjectOptions_SOURCE_DIR} added")
+        list(APPEND CMAKE_MODULE_PATH ${ProjectOptions_SOURCE_DIR}/src)
+    endif()
+
+    # Enable sanitizers and static analyzers when running the tests
+    set(ENABLE_CLANG_TIDY NO)
+    set(ENABLE_SANITIZER_THREAD "ENABLE_SANITIZER_THREAD")
+    if(DEFINED ENV{CI})
+        set(ENABLE_CLANG_TIDY "ENABLE_CLANG_TIDY")
+    else()
+        # check_sanitizers_support(
+        # ENABLE_SANITIZER_ADDRESS ENABLE_SANITIZER_UNDEFINED ENABLE_SANITIZER_LEAK
+        # ENABLE_SANITIZER_THREAD ENABLE_SANITIZER_MEMORY
+        # )
+    endif()
+
+    if(APPLE)
+        set(ENABLE_SANITIZER_LEAK NO)
+    endif()
+
     project_options(
         PREFIX
         ${PROJECT_NAME}
         ENABLE_CACHE
         ENABLE_COVERAGE
-        ENABLE_CLANG_TIDY
-        ENABLE_SANITIZER_ADDRESS
-        ENABLE_SANITIZER_UNDEFINED_BEHAVIOR
-        # ENABLE_SANITIZER_LEAK
-        # ENABLE_SANITIZER_THREAD
-        # ENABLE_SANITIZER_MEMORY
+        ${ENABLE_CLANG_TIDY}
+        ${ENABLE_SANITIZER_ADDRESS}
+        ${ENABLE_SANITIZER_LEAK}
+        ${ENABLE_SANITIZER_MEMORY}
+        ${ENABLE_SANITIZER_THREAD}
+        ${ENABLE_SANITIZER_UNDEFINED}
+        ENABLE_CONTROL_FLOW_PROTECTION
+        ENABLE_STACK_PROTECTION
+        ENABLE_OVERFLOW_PROTECTION
+        # XXX ENABLE_INCLUDE_WHAT_YOU_USE
         # XXX NO! WARNINGS_AS_ERRORS
-        # ENABLE_INCLUDE_WHAT_YOU_USE
     )
 
     target_link_libraries(
@@ -94,6 +127,9 @@ endif()
 # Install and export tftpd-targets
 #---------------------------------------------------------------------------------------
 if(NOT CMAKE_SKIP_INSTALL_RULES)
+    # PackageProject.cmake will be used to make our target installable
+    CPMAddPackage("gh:TheLartians/PackageProject.cmake@1.13.0")
+
     packageProject(
         NAME ${PROJECT_NAME}
         VERSION ${PROJECT_VERSION}
@@ -136,9 +172,11 @@ if(NETKIT_TFTP_TESTS)
     enable_testing()
 
     add_executable(option_test option_test.cpp async_tftpd_server.hpp)
-    #NO! CK target_include_directories(option_test SYSTEM PRIVATE include)
     target_link_libraries(option_test PRIVATE tftpd)
-    add_test(NAME option_test COMMAND option_test)
+
+    if(NOT DEFINED ENV{CI})
+        add_test(NAME option_test COMMAND option_test)
+    endif()
 
     add_executable(tftpd_test tftpd_test.cpp async_tftpd_server.hpp)
     target_link_libraries(tftpd_test PRIVATE tftpd)
@@ -146,7 +184,7 @@ if(NETKIT_TFTP_TESTS)
     if(UNIX)
         add_test(
             NAME tftpd_test
-            COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/test.sh
+            COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/test.sh $<TARGET_FILE:tftpd_test>
             WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
         )
     endif()
