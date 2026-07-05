@@ -190,7 +190,7 @@ protected:
         }
 
         size_t const extra = TFTP_HEADER + 1; // include strend '\0'
-        err_msg.resize(std::min(err_msg.size(), PKTSIZE - TFTP_HEADER));
+        err_msg.resize(std::min(err_msg.size(), PKTSIZE - extra));
         size_t const length = err_msg.size() + extra;
 
         // NOLINTNEXTLINE(cppcoreguidelines-pro-type-union-access)
